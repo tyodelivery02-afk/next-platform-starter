@@ -1,39 +1,57 @@
-export function Alert({ children, className, type }) {
+"use client";
+import React, { useState, useImperativeHandle, forwardRef } from "react";
+
+const AlertModal = forwardRef(function AlertModal(_, ref) {
+    const [isOpen, setIsOpen] = useState(false);
+    const [message, setMessage] = useState("");
+    const [title, setTitle] = useState("実行結果");
+
+    useImperativeHandle(ref, () => ({
+        open({ title = "実行結果", message }) {
+            setTitle(title);
+            setMessage(message);
+            setIsOpen(true);
+        },
+    }));
+
+    const handleClose = () => setIsOpen(false);
+
+    if (!isOpen) return null;
+
     return (
         <div
-            className={[
-                'flex gap-4 p-4 rounded-sm',
-                type === 'error' ? 'bg-rose-400 text-neutral-900' : 'bg-primary text-primary-content',
-                className
-            ]
-                .filter(Boolean)
-                .join(' ')}
+            className="fixed inset-0 flex items-center justify-center z-50"
+            onClick={handleClose}
         >
-            <AlertIcon type={type} className="w-6 h-6 fill-current shrink-0" />
-            {children}
+            <div
+                className="bg-white rounded-2xl p-6 w-80 shadow-2xl border border-gray-200 relative transform transition-all duration-300 scale-100 hover:scale-[1.02]"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <h3 className="text-lg font-semibold mb-4 text-gray-800">{title}</h3>
+                <p className="mb-6 text-gray-700 leading-relaxed inline-flex items-center gap-2">
+                    {message}
+                    <img
+                        src={
+                            message === "保存成功！"
+                                ? "/images/tachikoma/ok.png"
+                                : message === "保存失敗！"
+                                    ? "/images/tachikoma/gabin.png"
+                                    : ""
+                        }
+                        className="w-20"
+                    />
+                </p>
+                <div className="flex justify-end">
+                    <button
+                        onClick={handleClose}
+                        className="px-4 py-2 rounded-lg bg-green-500 text-white hover:bg-green-600 shadow-md transition"
+                    >
+                        OK！
+                    </button>
+                </div>
+            </div>
         </div>
     );
-}
+});
 
-function AlertIcon({ type, className }) {
-    switch (type) {
-        case 'success':
-            return (
-                <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24">
-                    <path d="M10.6 16.6l7.050-7.050-1.4-1.4-5.65 5.65-2.85-2.85-1.4 1.4 4.25 4.25zM12 22q-2.075 0-3.9-0.788t-3.175-2.138-2.137-3.175-0.788-3.9 0.787-3.9 2.137-3.175 3.175-2.137 3.9-0.788 3.9 0.787 3.175 2.137 2.138 3.175 0.788 3.9-0.788 3.9-2.138 3.175-3.175 2.138-3.9 0.788zM12 20q3.35 0 5.675-2.325t2.325-5.675-2.325-5.675-5.675-2.325-5.675 2.325-2.325 5.675 2.325 5.675 5.675 2.325z"></path>
-                </svg>
-            );
-        case 'error':
-            return (
-                <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24">
-                    <path d="M8.4 17l3.6-3.6 3.6 3.6 1.4-1.4-3.6-3.6 3.6-3.6-1.4-1.4-3.6 3.6-3.6-3.6-1.4 1.4 3.6 3.6-3.6 3.6 1.4 1.4zM12 22q-2.075 0-3.9-0.788t-3.175-2.138-2.137-3.175-0.788-3.9 0.787-3.9 2.137-3.175 3.175-2.137 3.9-0.788 3.9 0.787 3.175 2.137 2.138 3.175 0.788 3.9-0.788 3.9-2.138 3.175-3.175 2.138-3.9 0.788zM12 20q3.35 0 5.675-2.325t2.325-5.675-2.325-5.675-5.675-2.325-5.675 2.325-2.325 5.675 2.325 5.675 5.675 2.325z"></path>
-                </svg>
-            );
-        default:
-            return (
-                <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24">
-                    <path d="M12 17q0.425 0 0.712-0.288t0.288-0.713-0.288-0.713-0.712-0.288-0.712 0.288-0.288 0.713 0.288 0.713 0.712 0.288zM11 13h2v-6h-2v6zM12 22q-2.075 0-3.9-0.788t-3.175-2.138-2.137-3.175-0.788-3.9 0.787-3.9 2.137-3.175 3.175-2.137 3.9-0.788 3.9 0.787 3.175 2.137 2.138 3.175 0.788 3.9-0.788 3.9-2.138 3.175-3.175 2.138-3.9 0.788zM12 20q3.35 0 5.675-2.325t2.325-5.675-2.325-5.675-5.675-2.325-5.675 2.325-2.325 5.675 2.325 5.675 5.675 2.325z"></path>
-                </svg>
-            );
-    }
-}
+export default AlertModal;
