@@ -33,7 +33,7 @@ export default function TaskCheckSheet() {
   ];
 
   const alertRef = useRef();
-  const personList = ["郭", "藤", "三浦", "村田", "ススミタ", "ビカス", "村崎", "華", "杜", "末安", "中野"];
+  const personList = ["郭", "築藤", "三浦", "村田", "ススミタ", "ビカス", "村崎", "華", "杜", "末安", "中野"];
 
   const [tasks, setTasks] = useState(taskList.map((t) => ({ ...t, person: "" })));
   const [history, setHistory] = useState([]);
@@ -61,7 +61,7 @@ export default function TaskCheckSheet() {
   const fetchTodayTasks = async () => {
     if (!formattedDate) return;
     try {
-      const res = await fetch(`/api/todaytask?date=${formattedDate}`);
+      const res = await fetch(`/api/taskCheckSheet/todaytask?date=${formattedDate}`);
       if (!res.ok) throw new Error("Failed to fetch today's tasks");
       const todayRecord = await res.json();
 
@@ -85,7 +85,7 @@ export default function TaskCheckSheet() {
   // 拉取历史记录
   const fetchHistory = async () => {
     try {
-      const res = await fetch("/api/dailytask");
+      const res = await fetch("/api/taskCheckSheet/dailytask");
       if (!res.ok) throw new Error("Failed to fetch history");
       const data = await res.json();
       setHistory(Array.isArray(data) ? data : []);
@@ -112,7 +112,7 @@ export default function TaskCheckSheet() {
   const handleSave = async () => {
     if (!formattedDate) return;
     try {
-      const res = await fetch("/api/dailytask", {
+      const res = await fetch("/api/taskCheckSheet/dailytask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ date: formattedDate, data: tasks }),
@@ -145,10 +145,10 @@ export default function TaskCheckSheet() {
   );
 
   return (
-    <div className="p-8 bg-gray-50 min-h-screen text-gray-800">
+    <div className="p-8 bg-gray-50 min-h-screen text-gray-800 bg-gradient-to-b from-gray-400 to-gray-900">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-xl font-bold">一日のタスク担当者チェックシート</h1>
-        <span>{formattedDate}</span>
+        <h1 className="text-x2 font-bold text-white">一日のタスク担当者チェックシート</h1>
+        <span className="text-x1 font-bold text-white">{formattedDate}</span>
       </div>
 
       <div className="grid grid-cols-2 gap-6">
