@@ -5,7 +5,11 @@ import { useState } from "react";
 const NUM_IMAGES = 70;
 
 // 用一组你想飘落的图片URL
-const IMAGE_URLS = ["/images/livecat/ご安全に.png", "/images/livecat/ご安全に2.png"];
+const IMAGE_URLS = ["/images/halloween-ghost.svg"
+  , "/images/halloween-pumpkin.svg"
+  , "/images/halloween-skeleton.svg"
+  , "/images/halloween-typical.svg"
+  , "/images/halloween-winged.svg"];
 
 function FallingImages() {
   const [images] = useState(

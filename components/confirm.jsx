@@ -41,7 +41,7 @@ export default function ConfirmModal({
             <p className="mb-6 inline-flex items-center gap-2 text-gray-700 leading-relaxed">
               {message}
               <img
-                src="/images/tachikoma/letsplay_s.png"
+                src="/images/question.svg"
                 className="w-20"
               />
             </p>
@@ -50,13 +50,13 @@ export default function ConfirmModal({
                 onClick={handleCancel}
                 className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition"
               >
-                NO！
+                NO
               </button>
               <button
                 onClick={handleConfirm}
                 className="px-4 py-2 rounded-lg bg-green-500 text-white hover:bg-green-600 shadow-md transition"
               >
-                OK！
+                OK
               </button>
             </div>
           </div>

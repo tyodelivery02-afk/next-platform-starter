@@ -160,13 +160,13 @@ export default function TaskCheckSheet() {
               <ConfirmModal
                 onConfirm={handleClear}
                 buttonText="CLEAR"
-                message="クリアするよーーOK？"
+                message="クリアしますか？"
                 buttonColor="bg-gray-400 hover:bg-gray-500"
               />
               <ConfirmModal
                 onConfirm={handleSave}
                 buttonText="保存"
-                message="保存するよーーOK？"
+                message="保存しますか？"
                 buttonColor="bg-blue-500 hover:bg-blue-600"
               />
             </div>

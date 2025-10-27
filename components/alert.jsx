@@ -33,9 +33,9 @@ const AlertModal = forwardRef(function AlertModal(_, ref) {
                     <img
                         src={
                             message === "保存成功！"
-                                ? "/images/tachikoma/ok.png"
+                                ? "/images/celebration.svg"
                                 : message === "保存失敗！"
-                                    ? "/images/tachikoma/gabin.png"
+                                    ? "/images/skeleton.svg"
                                     : ""
                         }
                         className="w-20"
@@ -46,7 +46,7 @@ const AlertModal = forwardRef(function AlertModal(_, ref) {
                         onClick={handleClose}
                         className="px-4 py-2 rounded-lg bg-green-500 text-white hover:bg-green-600 shadow-md transition"
                     >
-                        OK！
+                        OK
                     </button>
                 </div>
             </div>

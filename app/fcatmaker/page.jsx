@@ -67,9 +67,11 @@ export default function ExcelFilterPage() {
       if (selectedMode === "朝") {
         if (dateM.isBefore(today, "month")) result.push({ G, M, N });
         else if (dateM.isSame(today, "month") && N && N <= "16:00:00") result.push({ G, M, N });
+        console.log("N 的内容:", N);  // 打印 N
       } else if (selectedMode === "夜") {
         if (dateM.isBefore(today, "month") || dateM.isSame(today, "month")) result.push({ G, M, N });
         else if (dateM.isSame(tomorrow, "month") && N && N <= "16:00:00") result.push({ G, M, N });
+        console.log("N 的内容:", N);  // 打印 N
       }
     });
 
@@ -220,7 +222,7 @@ export default function ExcelFilterPage() {
 
       {/* 朝/夜上传控件 */}
       <div className="flex items-center space-x-2 mb-4">
-        <span className="text-white font-bold">マスタ抽出：</span>
+        <span className="text-white font-bold w-25">マスタ抽出：</span>
         <input type="file" accept=".xlsx,.xls" onChange={handleFile}
           className="border border-gray-300 px-3 py-1.5 rounded-md text-sm cursor-pointer hover:border-blue-400 transition" />
       </div>
@@ -275,7 +277,7 @@ export default function ExcelFilterPage() {
 
       {/* 地区统计读取文件 */}
       <div className="flex items-center space-x-2 mt-6 mb-2">
-        <span className="text-white font-bold">集計：</span>
+        <span className="text-white font-bold w-25">集計：</span>
         <input type="file" accept=".xlsx,.xls" onChange={handleStatsFile}
           className="border border-gray-300 px-3 py-1.5 rounded-md text-sm cursor-pointer hover:border-blue-400 transition" />
       </div>
@@ -336,7 +338,7 @@ export default function ExcelFilterPage() {
 
       {/* エクスポート */}
       <div className="flex items-center space-x-2 mt-6 mb-2">
-        <span className="text-white font-bold">FCST作成：</span>
+        <span className="text-white font-bold w-25">FCST作成：</span>
         <input
           type="file"
           accept=".xlsx"
@@ -347,7 +349,7 @@ export default function ExcelFilterPage() {
           <ConfirmModal
             onConfirm={handleUpload}
             buttonText="FCST作成"
-            message="FCST作成するよーーOK？"
+            message="FCST作成しますか？"
             buttonColor={`${mode === "朝" ? "bg-yellow-600 hover:bg-yellow-700" : "bg-gray-700 hover:bg-gray-800"}`}
           />
         </div>

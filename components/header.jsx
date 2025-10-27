@@ -10,10 +10,10 @@ export function Header() {
     return (
         <nav className="flex flex-wrap items-center gap-4 pt-2 pb-4 sm:pt-4 md:pb-6 bg-gray-400">
             <Image
-                src="/images/tachikoma/tachikoma.png"
+                src="/images/witch.svg"
                 alt='main'
-                width={200}
-                height={200}
+                width={150}
+                height={150}
                 style={{ objectFit: "contain" }}
             />
             {!!navItems?.length && (
