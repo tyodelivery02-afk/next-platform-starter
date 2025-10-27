@@ -1,5 +1,5 @@
 "use client";
-
+import Image from 'next/image';
 import React, { useState } from "react";
 import * as XLSX from "xlsx";
 import dayjs from "dayjs";
@@ -49,8 +49,8 @@ export default function ExcelFilterPage() {
       if (!H || !M) return;
       if (!validSources.includes(String(H).trim())) return;
 
-      const [yy, mm] = String(M).split("/").map((v) => v.padStart(2, "0"));
-      const dateM = dayjs(`20${yy}-${mm}-01`);
+      const [mm, dd] = String(M).split("/").map((v) => v.padStart(2, "0"));
+      const dateM = dayjs(`${today.year()}-${mm}-${dd}`);
       if (!dateM.isValid()) return;
 
       if (typeof N === "number") N = XLSX.SSF.format("hh:mm:ss", N);
@@ -65,13 +65,11 @@ export default function ExcelFilterPage() {
       }
 
       if (selectedMode === "朝") {
-        if (dateM.isBefore(today, "month")) result.push({ G, M, N });
-        else if (dateM.isSame(today, "month") && N && N <= "16:00:00") result.push({ G, M, N });
-        console.log("N 的内容:", N);  // 打印 N
+        if (dateM.isBefore(today, "day")) result.push({ G, M, N });
+        else if (dateM.isSame(today, "day") && N && N <= "16:00:00") result.push({ G, M, N });
       } else if (selectedMode === "夜") {
-        if (dateM.isBefore(today, "month") || dateM.isSame(today, "month")) result.push({ G, M, N });
-        else if (dateM.isSame(tomorrow, "month") && N && N <= "16:00:00") result.push({ G, M, N });
-        console.log("N 的内容:", N);  // 打印 N
+        if (dateM.isBefore(today, "day") || dateM.isSame(today, "day")) result.push({ G, M, N });
+        else if (dateM.isSame(tomorrow, "day") && N && N <= "16:00:00") result.push({ G, M, N });
       }
     });
 
@@ -179,7 +177,7 @@ export default function ExcelFilterPage() {
 
     const formData = new FormData();
     formData.append("file", file);
-    // ✅ 上传时手动加上表头行
+    // 上传时手动加上表头行
     const tableHeader = ["マスタ番号", "大阪", "東京", "滋賀", "兵庫1"];
     formData.append("statsData", JSON.stringify([tableHeader, ...statsRows]));
 
@@ -217,14 +215,26 @@ export default function ExcelFilterPage() {
       : "bg-gradient-to-b from-gray-400 to-gray-900"
       }`}
     >
-      <h2 className="text-2xl mb-3 text-white">スパーフォーキャストメーカー</h2>
-      <hr className="h-1 bg-gradient-to-r from-transparent via-gray-400 to-transparent my-4" />
+      <h2 className="text-x2 font-bold text-black">スパーフォーキャストメーカー</h2>
+      <div
+        className="w-full h-6 my-6"
+        style={{
+          backgroundImage: "url(/images/divider.svg)",
+          backgroundRepeat: "repeat-x",
+          backgroundSize: "auto 35%",
+        }}
+      ></div>
+
+      {/* <div className="relative my-6">
+        <div className="h-[2px] bg-purple-500/40 blur-sm"></div>
+        <div className="absolute inset-0 h-[1px] bg-black"></div>
+      </div> */}
 
       {/* 朝/夜上传控件 */}
       <div className="flex items-center space-x-2 mb-4">
         <span className="text-white font-bold w-25">マスタ抽出：</span>
         <input type="file" accept=".xlsx,.xls" onChange={handleFile}
-          className="border border-gray-300 px-3 py-1.5 rounded-md text-sm cursor-pointer hover:border-blue-400 transition" />
+          className="border border-gray-300 px-3 py-1.5 rounded-md text-sm cursor-pointer hover:border-black transition" />
       </div>
 
       {/* 朝/夜单选 */}
@@ -279,7 +289,7 @@ export default function ExcelFilterPage() {
       <div className="flex items-center space-x-2 mt-6 mb-2">
         <span className="text-white font-bold w-25">集計：</span>
         <input type="file" accept=".xlsx,.xls" onChange={handleStatsFile}
-          className="border border-gray-300 px-3 py-1.5 rounded-md text-sm cursor-pointer hover:border-blue-400 transition" />
+          className="border border-gray-300 px-3 py-1.5 rounded-md text-sm cursor-pointer hover:border-black transition" />
       </div>
 
       {/* 地区统计折叠表格 */}
@@ -343,13 +353,13 @@ export default function ExcelFilterPage() {
           type="file"
           accept=".xlsx"
           onChange={(e) => setFile(e.target.files[0])}
-          className="border border-gray-300 px-3 py-1.5 rounded-md text-sm cursor-pointer hover:border-blue-400 transition"
+          className="border border-gray-300 px-3 py-1.5 rounded-md text-sm cursor-pointer hover:border-black transition"
         />
         <div className="flex gap-2">
           <ConfirmModal
             onConfirm={handleUpload}
             buttonText="FCST作成"
-            message="FCST作成しますか？"
+            message="FCST作成しますか"
             buttonColor={`${mode === "朝" ? "bg-yellow-600 hover:bg-yellow-700" : "bg-gray-700 hover:bg-gray-800"}`}
           />
         </div>

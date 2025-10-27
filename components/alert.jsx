@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useImperativeHandle, forwardRef } from "react";
+import { Smiley,SmileySad  } from "phosphor-react";
 
 const AlertModal = forwardRef(function AlertModal(_, ref) {
     const [isOpen, setIsOpen] = useState(false);
@@ -30,16 +31,10 @@ const AlertModal = forwardRef(function AlertModal(_, ref) {
                 <h3 className="text-lg font-semibold mb-4 text-gray-800">{title}</h3>
                 <p className="mb-6 text-gray-700 leading-relaxed inline-flex items-center gap-2">
                     {message}
-                    <img
-                        src={
-                            message === "保存成功！"
-                                ? "/images/celebration.svg"
-                                : message === "保存失敗！"
-                                    ? "/images/skeleton.svg"
-                                    : ""
-                        }
-                        className="w-20"
-                    />
+                    <span className="flex justify-center items-center">
+                        {message === "保存成功！" && <Smiley size={32} className="text-green-500" />}
+                        {message === "保存失敗！" && <SmileySad size={32} className="text-red-500" />}
+                    </span>
                 </p>
                 <div className="flex justify-end">
                     <button

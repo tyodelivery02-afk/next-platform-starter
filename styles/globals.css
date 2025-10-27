@@ -155,3 +155,19 @@
         }
     }
 }
+
+@keyframes fly {
+  0% {
+    transform: translateX(-50px) translateY(0px) rotate(-5deg);
+  }
+  50% {
+    transform: translateX(50px) translateY(-20px) rotate(5deg);
+  }
+  100% {
+    transform: translateX(-50px) translateY(0px) rotate(-5deg);
+  }
+}
+
+.fly-animation {
+  animation: fly 6s ease-in-out infinite;
+}

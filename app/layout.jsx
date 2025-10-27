@@ -1,4 +1,3 @@
-// app/layout.jsx
 import '../styles/globals.css';
 import AuthWrapper from '../components/authWrapper';
 
@@ -15,7 +14,7 @@ export default function RootLayout({ children }) {
       <head>
         <link rel="icon" href="/favicon.svg" sizes="any" />
       </head>
-      <body className="antialiased text-white">
+      <body className="ntialiased text-white">
         <div className="flex flex-col min-h-screen bg-transparent">
           <AuthWrapper>
             {/* AuthWrapper 内部会判断登录状态 */}

@@ -2,38 +2,12 @@
 import React, { useState, useEffect, useRef } from "react";
 import ConfirmModal from "components/confirm";
 import AlertModal from "components/alert";
+import FallingImages from 'components/fallingImages';
+import { taskList, personList } from 'app/config/config';
 
 export default function TaskCheckSheet() {
-  const taskList = [
-    { time: "8:00", job: "横持ちカゴ確認" },
-    { time: "8:30", job: "KPI確認" },
-    { time: "9:30", job: "返品確認　午前" },
-    { time: "10:00", job: "CST 午前" },
-    { time: "10:00", job: "再配達確認　前日分" },
-    { time: "10:30", job: "不正ステータス確認" },
-    { time: "11:00", job: "サイトユーザー登録住所確認" },
-    { time: "12:00", job: "再配達確認　8～12時" },
-    { time: "13:00", job: "NC　業者引き渡し" },
-    { time: "14:00", job: "配達失敗件数記録" },
-    { time: "14:30", job: "日報貨物件数記録" },
-    { time: "15:00", job: "返品確認　午後" },
-    { time: "15:00", job: "桃太郎件数報告" },
-    { time: "16:00", job: "再配達確認　12～16時" },
-    { time: "16:30", job: "桃太郎誤仕分確認" },
-    { time: "17:00", job: "PG件数報告（社員）" },
-    { time: "17:00", job: "翌日分再出荷確認" },
-    { time: "17:00", job: "PG集荷漏れ確認" },
-    { time: "17:30", job: "保税エリアの許可貨物確認" },
-    { time: "17:30", job: "ヤマト貼替データCS送信" },
-    { time: "17:30", job: "CST 午後" },
-    { time: "17:55", job: "再出荷最終確認" },
-    { time: "18:00", job: "現場残貨確認（社員）" },
-    { time: "18:00", job: "コールセンター集計（平日テレ）" },
-    { time: "19:00", job: "愛陸車両確認（社員）" },
-  ];
 
   const alertRef = useRef();
-  const personList = ["郭", "築藤", "三浦", "村田", "ススミタ", "ビカス", "村崎", "華", "杜", "末安", "中野"];
 
   const [tasks, setTasks] = useState(taskList.map((t) => ({ ...t, person: "" })));
   const [history, setHistory] = useState([]);
@@ -146,34 +120,44 @@ export default function TaskCheckSheet() {
 
   return (
     <div className="p-8 bg-gray-50 min-h-screen text-gray-800 bg-gradient-to-b from-gray-400 to-gray-900">
+      {/* <FallingImages numImages={50} /> */}
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-x2 font-bold text-white">一日のタスク担当者チェックシート</h1>
-        <span className="text-x1 font-bold text-white">{formattedDate}</span>
+        <h2 className="relative text-x2 font-bold text-black">一日のタスク担当者チェックシート</h2>
+        <span className="relative text-x1 font-bold text-white">{formattedDate}</span>
       </div>
+      <div
+        className="w-full h-6 my-6"
+        style={{
+          backgroundImage: "url(/images/divider.svg)",
+          backgroundRepeat: "repeat-x",
+          backgroundSize: "auto 35%",
+        }}
+      ></div>
+      {/* <hr className="h-1 bg-gradient-to-r from-transparent via-gray-400 to-transparent my-4" /> */}
 
       <div className="grid grid-cols-2 gap-6">
         {/* 今日のタスク */}
-        <div className="bg-white rounded-2xl shadow p-4">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold">今日のタスク</h2>
-            <div className="flex gap-2">
+        <div className="relative rounded-2xl shadow p-4">
+          <div className="flex justify-between items-center mb-3">
+            <h2 className="text-xl font-bold">今日のタスク</h2>
+            <div className="relative flex gap-2">
               <ConfirmModal
                 onConfirm={handleClear}
                 buttonText="CLEAR"
-                message="クリアしますか？"
+                message="クリアしますか"
                 buttonColor="bg-gray-400 hover:bg-gray-500"
               />
               <ConfirmModal
                 onConfirm={handleSave}
                 buttonText="保存"
-                message="保存しますか？"
+                message="保存しますか"
                 buttonColor="bg-blue-500 hover:bg-blue-600"
               />
             </div>
           </div>
-          <table className="w-full border-collapse text-sm">
+          <table className="w-full text-gray-800 bg-white/80 backdrop-blur-md rounded-xl border-0 border-collapse text-sm shadow-sm">
             <thead>
-              <tr className="bg-green-100 text-left">
+              <tr className="bg-blue-500 text-left text-white rounded-xl">
                 <th className="border border-gray-300 px-3 py-2 w-20">時間帯</th>
                 <th className="border border-gray-300 px-3 py-2 w-64">業務</th>
                 <th className="border border-gray-300 px-3 py-2 w-24">担当者</th>
@@ -181,7 +165,7 @@ export default function TaskCheckSheet() {
             </thead>
             <tbody>
               {tasks.map((task, idx) => (
-                <tr key={idx} className="hover:bg-gray-50">
+                <tr key={idx} className="hover:bg-blue-50">
                   <td className="border px-3 py-2">{task.time}</td>
                   <td className="border px-3 py-2">{task.job}</td>
                   <td className="border px-3 py-2">
@@ -203,13 +187,13 @@ export default function TaskCheckSheet() {
         </div>
 
         {/* 履歴 */}
-        <div className="bg-white rounded-2xl shadow p-4">
-          <h2 className="text-lg font-semibold mb-4">履歴</h2>
+        <div className="rounded-2xl shadow p-4 backdrop-blur-sm">
+          <h2 className="text-xl font-bold mb-4">履歴</h2>
           <div className="space-y-3">
             {paginatedHistory.length > 0 ? (
               paginatedHistory.map((record, i) => (
-                <details key={i} className="border rounded-lg">
-                  <summary className="bg-gray-100 px-4 py-2 cursor-pointer">
+                <details key={i} className="border rounded-lg rounded-xl">
+                  <summary className="bg-gray-200 px-4 py-2 cursor-pointer rounded-xl border-0 hover:bg-blue-50">
                     {(() => {
                       const d = new Date(record.date);
                       return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(
@@ -219,9 +203,9 @@ export default function TaskCheckSheet() {
                     })()}
                   </summary>
                   <div className="p-3 text-sm">
-                    <table className="w-full border-collapse">
+                    <table className="w-full text-gray-800 bg-white/80 backdrop-blur-md rounded-2xl border-0 border-collapse text-sm shadow-sm">
                       <thead>
-                        <tr className="bg-green-50">
+                        <tr className="bg-blue-500 text-white">
                           <th className="border px-2 py-1 w-20">時間帯</th>
                           <th className="border px-2 py-1">業務</th>
                           <th className="border px-2 py-1 w-24">担当者</th>
@@ -230,7 +214,7 @@ export default function TaskCheckSheet() {
                       <tbody>
                         {Array.isArray(record.daily_task) &&
                           record.daily_task.map((task, j) => (
-                            <tr key={j}>
+                            <tr className="hover:bg-blue-50" key={j}>
                               <td className="border px-2 py-1">{task.time}</td>
                               <td className="border px-2 py-1">{task.job}</td>
                               <td className="border px-2 py-1">{task.person}</td>
@@ -251,17 +235,17 @@ export default function TaskCheckSheet() {
               <button
                 onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
                 disabled={currentPage === 1}
-                className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50"
+                className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50 hover:bg-blue-50"
               >
                 前のページ
               </button>
-              <span>
+              <span className="text-white">
                 {currentPage} / {totalPages}
               </span>
               <button
                 onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
                 disabled={currentPage === totalPages}
-                className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50"
+                className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50 hover:bg-blue-50"
               >
                 次のページ
               </button>

@@ -1,5 +1,6 @@
 "use client";
 import React, { useState } from "react";
+import { Question } from "phosphor-react";
 
 export default function ConfirmModal({
   onConfirm,
@@ -40,10 +41,7 @@ export default function ConfirmModal({
             <h3 className="text-lg font-semibold mb-4 text-gray-800">{title}</h3>
             <p className="mb-6 inline-flex items-center gap-2 text-gray-700 leading-relaxed">
               {message}
-              <img
-                src="/images/question.svg"
-                className="w-20"
-              />
+              <Question size={32} />
             </p>
             <div className="flex justify-end gap-4">
               <button
