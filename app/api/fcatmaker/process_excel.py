@@ -189,6 +189,6 @@ for idx, (agent, total) in enumerate(agent_map.items()):
 output_path = input_path.replace(".xlsx", "_filled.xlsx")
 wb.save(output_path)
 
-# ✅ 输出结果文件给 Node（用 stdout 输出）
+# 输出结果文件给 Node（用 stdout 输出）
 with open(output_path, "rb") as f:
     sys.stdout.buffer.write(f.read())

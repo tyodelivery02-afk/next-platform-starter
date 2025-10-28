@@ -35,7 +35,7 @@ export default function ConfirmModal({
           onClick={handleCancel}
         >
           <div
-            className="bg-white rounded-2xl p-6 w-80 shadow-2xl border border-gray-200 relative transform transition-all duration-300 scale-100 hover:scale-[1.02]"
+            className="glass-card"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-semibold mb-4 text-gray-800">{title}</h3>
@@ -46,7 +46,7 @@ export default function ConfirmModal({
             <div className="flex justify-end gap-4">
               <button
                 onClick={handleCancel}
-                className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition"
+                className="px-4 py-2 rounded-lg border border-white bg-gray-400 text-white hover:bg-gray-500 transition"
               >
                 NO
               </button>

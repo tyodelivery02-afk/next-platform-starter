@@ -10,12 +10,12 @@ const navItems = [
 
 export function Header() {
     return (
-        <nav className="flex flex-wrap items-center gap-4 pt-2 pb-4 sm:pt-4 md:pb-6 bg-gray-400">
+        <nav className="flex flex-wrap items-center gap-4 pt-3 pb-0 bg-gray-400">
             <Image
                 src="/images/witch-flying.svg"
                 alt='main'
-                width={150}
-                height={150}
+                width={130}
+                height={130}
                 className="fly-animation"
                 style={{ objectFit: "contain" }}
             />

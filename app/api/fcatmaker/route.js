@@ -4,20 +4,17 @@ import fs from "fs";
 
 export async function POST(req) {
   try {
-    // ✅ 解析前端上传的 FormData
+    // 解析前端上传的 FormData
     const formData = await req.formData();
     const file = formData.get("file");
     const statsData = formData.get("statsData");
 
-    if (!file) throw new Error("缺少上传的 Excel 文件");
-    if (!statsData) throw new Error("缺少统计数据 statsData");
-
-    // ✅ 把文件保存为临时文件
+    // 把文件保存为临时文件
     const bytes = Buffer.from(await file.arrayBuffer());
     const inputPath = "./temp_input.xlsx";
     fs.writeFileSync(inputPath, bytes);
 
-    // ✅ 调用 Python 处理 Excel
+    // 调用 Python 处理 Excel
     const py = spawn("python", ["./app/api/fcatmaker/process_excel.py", inputPath, statsData]);
 
     let outputBuffer = Buffer.from([]);
@@ -37,7 +34,7 @@ export async function POST(req) {
       throw new Error(errorText || "Python 处理失败");
     }
 
-    // ✅ 返回 Excel 文件给前端
+    // 返回 Excel 文件给前端
     return new Response(outputBuffer, {
       status: 200,
       headers: {

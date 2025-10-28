@@ -1,14 +1,14 @@
 "use client";
 import React, { useState, useImperativeHandle, forwardRef } from "react";
-import { Smiley,SmileySad  } from "phosphor-react";
+import { WarningOctagon } from "phosphor-react";
 
-const AlertModal = forwardRef(function AlertModal(_, ref) {
+const WarningModal = forwardRef(function WarningModal(_, ref) {
     const [isOpen, setIsOpen] = useState(false);
     const [message, setMessage] = useState("");
-    const [title, setTitle] = useState("実行結果");
+    const [title, setTitle] = useState("警告");
 
     useImperativeHandle(ref, () => ({
-        open({ title = "実行結果", message }) {
+        open({ title = "警告", message }) {
             setTitle(title);
             setMessage(message);
             setIsOpen(true);
@@ -32,8 +32,7 @@ const AlertModal = forwardRef(function AlertModal(_, ref) {
                 <p className="mb-6 text-gray-700 leading-relaxed inline-flex items-center gap-2">
                     {message}
                     <span className="flex justify-center items-center">
-                        {message === "保存成功！" && <Smiley size={32} className="text-green-500" />}
-                        {message === "保存失敗！" && <SmileySad size={32} className="text-red-500" />}
+                        <WarningOctagon size={32} className="text-red-500" />
                     </span>
                 </p>
                 <div className="flex justify-end">
@@ -49,4 +48,4 @@ const AlertModal = forwardRef(function AlertModal(_, ref) {
     );
 });
 
-export default AlertModal;
+export default WarningModal;

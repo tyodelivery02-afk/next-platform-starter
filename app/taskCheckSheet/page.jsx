@@ -157,7 +157,7 @@ export default function TaskCheckSheet() {
           </div>
           <table className="w-full text-gray-800 bg-white/80 backdrop-blur-md rounded-xl border-0 border-collapse text-sm shadow-sm">
             <thead>
-              <tr className="bg-blue-500 text-left text-white rounded-xl">
+              <tr className="bg-gray-600 text-left text-white rounded-xl">
                 <th className="border border-gray-300 px-3 py-2 w-20">時間帯</th>
                 <th className="border border-gray-300 px-3 py-2 w-64">業務</th>
                 <th className="border border-gray-300 px-3 py-2 w-24">担当者</th>
@@ -205,7 +205,7 @@ export default function TaskCheckSheet() {
                   <div className="p-3 text-sm">
                     <table className="w-full text-gray-800 bg-white/80 backdrop-blur-md rounded-2xl border-0 border-collapse text-sm shadow-sm">
                       <thead>
-                        <tr className="bg-blue-500 text-white">
+                        <tr className="bg-gray-600 text-white">
                           <th className="border px-2 py-1 w-20">時間帯</th>
                           <th className="border px-2 py-1">業務</th>
                           <th className="border px-2 py-1 w-24">担当者</th>
@@ -253,7 +253,6 @@ export default function TaskCheckSheet() {
           )}
         </div>
       </div>
-
       <AlertModal ref={alertRef} />
     </div>
   );

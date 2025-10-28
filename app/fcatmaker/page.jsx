@@ -1,11 +1,12 @@
 "use client";
 import Image from 'next/image';
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import * as XLSX from "xlsx";
 import dayjs from "dayjs";
 import { MoonStars, Sun } from "phosphor-react";
 import ConfirmModal from "components/confirm";
 import { validSources, mapping } from 'app/config/config';
+import WarningModal from "components/warning";
 
 export default function ExcelFilterPage() {
   const [rows, setRows] = useState([]); // 朝/夜筛选后的结果
@@ -16,6 +17,7 @@ export default function ExcelFilterPage() {
   const [statsRows, setStatsRows] = useState([]); // 地区统计表格数据
   const [statsRawData, setStatsRawData] = useState([]); // 地区统计原始数据
   const [isStatsOpen, setIsStatsOpen] = useState(true); // 统计表折叠状态
+  const warningRef = useRef();
 
   // ------------------- 朝/夜表格 -------------------
   const handleFile = (e) => {
@@ -172,10 +174,17 @@ export default function ExcelFilterPage() {
   const [file, setFile] = useState(null);
 
   const handleUpload = async () => {
-    if (!file) return alert("请先选择 Excel 文件");
-    if (!statsRows || statsRows.length === 0) return alert("地区统计数据为空");
+    if (!file) {
+      warningRef.current?.open({ message: "Excelを選んでください" });
+      return;
+    }
+    if (!statsRows || statsRows.length === 0) {
+      warningRef.current?.open({ message: "集計データなし" });
+      return;
+    }
 
     const formData = new FormData();
+    const excelname = file.name
     formData.append("file", file);
     // 上传时手动加上表头行
     const tableHeader = ["マスタ番号", "大阪", "東京", "滋賀", "兵庫1"];
@@ -198,7 +207,7 @@ export default function ExcelFilterPage() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "filled.xlsx";
+      a.download = excelname;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -364,6 +373,7 @@ export default function ExcelFilterPage() {
           />
         </div>
       </div>
+      <WarningModal ref={warningRef} />
     </div>
   );
 }

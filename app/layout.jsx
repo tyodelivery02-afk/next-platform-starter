@@ -1,5 +1,6 @@
 import '../styles/globals.css';
 import AuthWrapper from '../components/authWrapper';
+import { FloatingCharacter } from "../components/ad";
 
 export const metadata = {
   title: {
@@ -21,6 +22,7 @@ export default function RootLayout({ children }) {
             {children}
           </AuthWrapper>
         </div>
+        <FloatingCharacter />
       </body>
     </html>
   );

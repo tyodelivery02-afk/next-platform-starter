@@ -3,11 +3,9 @@
 @import 'tailwindcss';
 
 @theme {
-    --background-image-noise: linear-gradient(
-            to bottom,
+    --background-image-noise: linear-gradient(to bottom,
             color-mix(in oklab, var(--color-neutral-950) 0%, transparent),
-            color-mix(in oklab, var(--color-neutral-950) 100%, transparent)
-        ),
+            color-mix(in oklab, var(--color-neutral-950) 100%, transparent)),
         url('/images/noise.png');
     --color-primary: #2bdcd2;
     --color-primary-content: #171717;
@@ -33,7 +31,7 @@
         @apply underline transition hover:opacity-80;
     }
 
-    :not(pre) > code {
+    :not(pre)>code {
         @apply px-1 py-0.5 font-mono rounded bg-neutral-900 text-yellow-200;
         font-size: 0.9em;
     }
@@ -41,7 +39,7 @@
 
 @layer components {
     .markdown {
-        > * {
+        >* {
             @apply my-4;
         }
 
@@ -94,12 +92,14 @@
             outline: 2px solid var(--color-gray-400);
             outline-offset: 1px;
         }
+
         &:focus-visible {
             .diff-resizer {
                 min-width: 80cqi;
                 max-width: 80cqi;
             }
         }
+
         &:has(.diff-item-2:focus-visible) {
             .diff-resizer {
                 min-width: 20cqi;
@@ -136,6 +136,7 @@
             box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-gray-900) 5%, transparent),
                 0 1px 3px 0 color-mix(in oklab, var(--color-gray-900) 20%, transparent);
         }
+
         @supports (-webkit-overflow-scrolling: touch) and (overflow: -webkit-paged-x) {
             &:after {
                 content: none;
@@ -145,7 +146,7 @@
 
     .diff-item-1,
     .diff-item-2 {
-        > * {
+        >* {
             height: 100%;
             width: 100cqi;
             position: absolute;
@@ -154,20 +155,46 @@
             pointer-events: none;
         }
     }
+
+    .glass-card {
+        @apply relative w-80 p-6 rounded-2xl bg-white/80 shadow-2xl border border-gray-500 backdrop-blur-md transform transition-all duration-300 scale-100 hover:scale-[1.02];
+
+    }
+
 }
 
 @keyframes fly {
-  0% {
-    transform: translateX(-50px) translateY(0px) rotate(-5deg);
-  }
-  50% {
-    transform: translateX(50px) translateY(-20px) rotate(5deg);
-  }
-  100% {
-    transform: translateX(-50px) translateY(0px) rotate(-5deg);
-  }
+    0% {
+        transform: translateX(-50px) translateY(0px) rotate(-5deg);
+    }
+
+    50% {
+        transform: translateX(50px) translateY(-20px) rotate(5deg);
+    }
+
+    100% {
+        transform: translateX(-50px) translateY(0px) rotate(-5deg);
+    }
 }
 
 .fly-animation {
-  animation: fly 6s ease-in-out infinite;
+    animation: fly 6s ease-in-out infinite;
+}
+
+@keyframes move {
+    0% {
+        transform: translateX(-10px) translateY(0px) rotate(-5deg);
+    }
+
+    50% {
+        transform: translateX(10px) translateY(-20px) rotate(5deg);
+    }
+
+    100% {
+        transform: translateX(-10px) translateY(0px) rotate(-5deg);
+    }
+}
+
+.move-animation {
+    animation: move 6s ease-in-out infinite;
 }

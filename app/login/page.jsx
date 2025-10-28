@@ -1,10 +1,12 @@
 "use client";
-import { useState } from "react";
+import { useState,useRef } from "react";
 import FallingImages from 'components/fallingImages';
+import WarningModal from "components/warning";
 
 export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const warningRef = useRef();
 
   const handleLogin = async () => {
     const res = await fetch("/api/loginverify", {
@@ -17,7 +19,7 @@ export default function LoginPage() {
       sessionStorage.setItem("sessionToken", data.token);
       window.location.reload();
     } else {
-      setError("パスワード不正");
+      warningRef.current?.open({ message: "パスワード不正" });
     }
   };
 
@@ -49,6 +51,7 @@ export default function LoginPage() {
           <p className="text-red-500 mt-2 drop-shadow-lg">{error}</p>
         )}
       </div>
+      <WarningModal ref={warningRef} />
     </div>
   );
 }
