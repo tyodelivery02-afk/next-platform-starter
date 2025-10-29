@@ -11,11 +11,11 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-gray-50 flex flex-col items-center py-10 bg-gradient-to-b from-gray-400 to-gray-900">
-      <h1 className="text-2xl font-bold mb-8">メニュー</h1>
+      {/* <h1 className="text-2xl font-bold mb-8">メニュー</h1> */}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-250">
         <FallingImages numImages={50} />
-        {features.map((f, idx) => (
+        {/* {features.map((f, idx) => (
           <Link
             key={idx}
             href={f.path}
@@ -23,7 +23,7 @@ export default function Home() {
           >
             {f.name}
           </Link>
-        ))}
+        ))} */}
       </div>
     </main>
   );

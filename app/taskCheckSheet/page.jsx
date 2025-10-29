@@ -2,7 +2,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import ConfirmModal from "components/confirm";
 import AlertModal from "components/alert";
-import FallingImages from 'components/fallingImages';
 import { taskList, personList } from 'app/config/config';
 
 export default function TaskCheckSheet() {
@@ -118,12 +117,18 @@ export default function TaskCheckSheet() {
     currentPage * itemsPerPage
   );
 
+  const [currentPageInput, setCurrentPageInput] = useState(String(currentPage));
+
+  useEffect(() => {
+    setCurrentPageInput(String(currentPage));
+  }, [currentPage]);
+
   return (
     <div className="p-8 bg-gray-50 min-h-screen text-gray-800 bg-gradient-to-b from-gray-400 to-gray-900">
       {/* <FallingImages numImages={50} /> */}
       <div className="flex justify-between items-center mb-6">
         <h2 className="relative text-x2 font-bold text-black">一日のタスク担当者チェックシート</h2>
-        <span className="relative text-x1 font-bold text-white">{formattedDate}</span>
+        <span className="relative text-x1 font-bold text-black">{formattedDate}</span>
       </div>
       <div
         className="w-full h-6 my-6"
@@ -133,13 +138,12 @@ export default function TaskCheckSheet() {
           backgroundSize: "auto 35%",
         }}
       ></div>
-      {/* <hr className="h-1 bg-gradient-to-r from-transparent via-gray-400 to-transparent my-4" /> */}
 
       <div className="grid grid-cols-2 gap-6">
         {/* 今日のタスク */}
         <div className="relative rounded-2xl shadow p-4">
           <div className="flex justify-between items-center mb-3">
-            <h2 className="text-xl font-bold">今日のタスク</h2>
+            <h2 className="text-xl font-bold text-black">今日のタスク</h2>
             <div className="relative flex gap-2">
               <ConfirmModal
                 onConfirm={handleClear}
@@ -170,7 +174,8 @@ export default function TaskCheckSheet() {
                   <td className="border px-3 py-2">{task.job}</td>
                   <td className="border px-3 py-2">
                     <select
-                      className="w-full p-2 border rounded"
+                      className={`w-full p-2 border rounded ${task.person === "" ? "bg-yellow-50" : "bg-gray-100"
+                        }`}
                       value={task.person}
                       onChange={(e) => handlePersonChange(idx, e.target.value)}
                     >
@@ -188,7 +193,7 @@ export default function TaskCheckSheet() {
 
         {/* 履歴 */}
         <div className="rounded-2xl shadow p-4 backdrop-blur-sm">
-          <h2 className="text-xl font-bold mb-4">履歴</h2>
+          <h2 className="text-xl font-bold mb-4 text-black">履歴</h2>
           <div className="space-y-3">
             {paginatedHistory.length > 0 ? (
               paginatedHistory.map((record, i) => (
@@ -205,7 +210,7 @@ export default function TaskCheckSheet() {
                   <div className="p-3 text-sm">
                     <table className="w-full text-gray-800 bg-white/80 backdrop-blur-md rounded-2xl border-0 border-collapse text-sm shadow-sm">
                       <thead>
-                        <tr className="bg-gray-600 text-white">
+                        <tr className="bg-gray-600 text-left text-white">
                           <th className="border px-2 py-1 w-20">時間帯</th>
                           <th className="border px-2 py-1">業務</th>
                           <th className="border px-2 py-1 w-24">担当者</th>
@@ -239,9 +244,36 @@ export default function TaskCheckSheet() {
               >
                 前のページ
               </button>
-              <span className="text-white">
-                {currentPage} / {totalPages}
-              </span>
+
+              <div className="flex items-center gap-1 text-white">
+                <input
+                  type="number"
+                  min="1"
+                  max={totalPages}
+                  value={currentPageInput}
+                  onChange={(e) => setCurrentPageInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      let val = Number(currentPageInput);
+                      if (isNaN(val) || val < 1) val = 1;
+                      if (val > totalPages) val = totalPages;
+                      setCurrentPage(val);
+                      setCurrentPageInput(String(val));
+                      e.target.blur();
+                    }
+                  }}
+                  onBlur={() => {
+                    let val = Number(currentPageInput);
+                    if (isNaN(val) || val < 1) val = 1;
+                    if (val > totalPages) val = totalPages;
+                    setCurrentPage(val);
+                    setCurrentPageInput(String(val));
+                  }}
+                  className="w-14 text-center text-white rounded px-1 py-0.5 outline-none border border-gray-300"
+                />
+                <span>/ {totalPages}</span>
+              </div>
+
               <button
                 onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
                 disabled={currentPage === totalPages}

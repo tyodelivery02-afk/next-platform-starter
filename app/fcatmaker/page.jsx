@@ -1,6 +1,5 @@
 "use client";
-import Image from 'next/image';
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import * as XLSX from "xlsx";
 import dayjs from "dayjs";
 import { MoonStars, Sun } from "phosphor-react";
@@ -83,6 +82,16 @@ export default function ExcelFilterPage() {
     setMode(newMode);
     filterData(rawData, newMode);
   };
+
+  //0~14:朝;14~23:夜
+  useEffect(() => {
+    const hour = new Date().getHours(); 
+    if (hour >= 0 && hour < 14) {
+      setMode("朝");
+    } else {
+      setMode("夜");
+    }
+  }, []);
 
   // ------------------- 地区统计 -------------------
   const handleStatsFile = (e) => {
@@ -234,16 +243,11 @@ export default function ExcelFilterPage() {
         }}
       ></div>
 
-      {/* <div className="relative my-6">
-        <div className="h-[2px] bg-purple-500/40 blur-sm"></div>
-        <div className="absolute inset-0 h-[1px] bg-black"></div>
-      </div> */}
-
       {/* 朝/夜上传控件 */}
       <div className="flex items-center space-x-2 mb-4">
-        <span className="text-white font-bold w-25">マスタ抽出：</span>
+        <span className={`${mode === "朝" ? "text-black" : "text-white"} font-bold w-25`}>マスタ抽出：</span>
         <input type="file" accept=".xlsx,.xls" onChange={handleFile}
-          className="border border-gray-300 px-3 py-1.5 rounded-md text-sm cursor-pointer hover:border-black transition" />
+          className={mode === "朝" ? "inputfile-item" : "inputfile-item-light"} />
       </div>
 
       {/* 朝/夜单选 */}
@@ -292,13 +296,13 @@ export default function ExcelFilterPage() {
           </div>
         </div>
       )}
-      <hr className="h-1 bg-gradient-to-r from-transparent via-gray-400 to-transparent my-4" />
+      <hr className="line-item" />
 
       {/* 地区统计读取文件 */}
       <div className="flex items-center space-x-2 mt-6 mb-2">
-        <span className="text-white font-bold w-25">集計：</span>
+        <span className={`${mode === "朝" ? "text-black" : "text-white"} font-bold w-25`}>集計：</span>
         <input type="file" accept=".xlsx,.xls" onChange={handleStatsFile}
-          className="border border-gray-300 px-3 py-1.5 rounded-md text-sm cursor-pointer hover:border-black transition" />
+          className={mode === "朝" ? "inputfile-item" : "inputfile-item-light"} />
       </div>
 
       {/* 地区统计折叠表格 */}
@@ -353,16 +357,16 @@ export default function ExcelFilterPage() {
           </div>
         </div>
       )}
-      <hr className="h-1 bg-gradient-to-r from-transparent via-gray-400 to-transparent my-4" />
+      <hr className="line-item" />
 
       {/* エクスポート */}
       <div className="flex items-center space-x-2 mt-6 mb-2">
-        <span className="text-white font-bold w-25">FCST作成：</span>
+        <span className={`${mode === "朝" ? "text-black" : "text-white"} font-bold w-25`}>FCST作成：</span>
         <input
           type="file"
           accept=".xlsx"
           onChange={(e) => setFile(e.target.files[0])}
-          className="border border-gray-300 px-3 py-1.5 rounded-md text-sm cursor-pointer hover:border-black transition"
+          className={mode === "朝" ? "inputfile-item" : "inputfile-item-light"}
         />
         <div className="flex gap-2">
           <ConfirmModal

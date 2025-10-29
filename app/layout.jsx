@@ -18,7 +18,7 @@ export default function RootLayout({ children }) {
       <body className="ntialiased text-white">
         <div className="flex flex-col min-h-screen bg-transparent">
           <AuthWrapper>
-            {/* AuthWrapper 内部会判断登录状态 */}
+            {/* AuthWrapper 内部判断登录状态 */}
             {children}
           </AuthWrapper>
         </div>
