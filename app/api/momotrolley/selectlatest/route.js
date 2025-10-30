@@ -9,7 +9,7 @@ export async function GET() {
       SELECT DISTINCT ON (trolley_id)
         trolley_id, status
       FROM momo_trolley_records
-      ORDER BY trolley_id, date DESC, am_pm DESC;
+      ORDER BY trolley_id, date DESC, am_pm ASC;
     `;
 
     // 这里 result 直接是数组，不是 { rows }

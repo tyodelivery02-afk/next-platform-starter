@@ -35,7 +35,7 @@ export default function ConfirmModal({
           onClick={handleCancel}
         >
           <div
-            className="glass-card"
+            className="glass-card text-left"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-semibold mb-4 text-gray-800">{title}</h3>

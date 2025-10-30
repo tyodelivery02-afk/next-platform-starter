@@ -5,95 +5,121 @@ import AlertModal from "components/alert";
 import { taskList, personList } from 'app/config/config';
 
 export default function TaskCheckSheet() {
-
   const alertRef = useRef();
 
   const [tasks, setTasks] = useState(taskList.map((t) => ({ ...t, person: "" })));
   const [history, setHistory] = useState([]);
   const [formattedDate, setFormattedDate] = useState("");
+  const [loading, setLoading] = useState(true);
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 30;
 
-  // 获取服务器日期
-  const fetchServerDate = async () => {
+  // 并行获取所有数据
+  const fetchAllData = async () => {
+    setLoading(true);
     try {
-      const res = await fetch("/api/servertime");
-      if (!res.ok) throw new Error("Failed to fetch server time");
-      const data = await res.json();
-      const today = new Date(data.serverTime);
-      setFormattedDate(today.toISOString().split("T")[0]); // YYYY-MM-DD
-    } catch (err) {
-      console.error(err);
-      const today = new Date();
-      setFormattedDate(today.toISOString().split("T")[0]);
-    }
-  };
+      // 先获取服务器时间
+      const timeRes = await fetch("/api/servertime");
+      if (!timeRes.ok) throw new Error("Failed to fetch server time");
+      const timeData = await timeRes.json();
+      const today = new Date(timeData.serverTime);
+      const dateStr = today.toISOString().split("T")[0];
+      setFormattedDate(dateStr);
 
-  // 使用 GET_BY_DATE 获取当天任务
-  const fetchTodayTasks = async () => {
-    if (!formattedDate) return;
-    try {
-      const res = await fetch(`/api/taskCheckSheet/todaytask?date=${formattedDate}`);
-      if (!res.ok) throw new Error("Failed to fetch today's tasks");
-      const todayRecord = await res.json();
+      // 并行获取当天任务和历史记录
+      const [todayRes, historyRes] = await Promise.all([
+        fetch(`/api/taskCheckSheet/todaytask?date=${dateStr}`),
+        fetch("/api/taskCheckSheet/dailytask")
+      ]);
 
-      if (todayRecord && Array.isArray(todayRecord.daily_task)) {
-        const updatedTasks = taskList.map((t) => {
-          const dbTask = todayRecord.daily_task.find(
-            (d) => d.time === t.time && d.job === t.job
-          );
-          return { ...t, person: dbTask ? dbTask.person : "" };
-        });
-        setTasks(updatedTasks);
+      // 处理当天任务
+      if (todayRes.ok) {
+        const todayRecord = await todayRes.json();
+        if (todayRecord && Array.isArray(todayRecord.daily_task)) {
+          const updatedTasks = taskList.map((t) => {
+            const dbTask = todayRecord.daily_task.find(
+              (d) => d.time === t.time && d.job === t.job
+            );
+            return { ...t, person: dbTask ? dbTask.person : "" };
+          });
+          setTasks(updatedTasks);
+        } else {
+          setTasks(taskList.map((t) => ({ ...t, person: "" })));
+        }
       } else {
         setTasks(taskList.map((t) => ({ ...t, person: "" })));
       }
+
+      // 处理历史记录
+      if (historyRes.ok) {
+        const historyData = await historyRes.json();
+        setHistory(Array.isArray(historyData) ? historyData : []);
+        setCurrentPage(1);
+      } else {
+        setHistory([]);
+      }
+
     } catch (err) {
-      console.error("Error fetching today's tasks:", err);
+      console.error("Error fetching data:", err);
+      // 降级处理：使用客户端时间
+      const today = new Date();
+      setFormattedDate(today.toISOString().split("T")[0]);
       setTasks(taskList.map((t) => ({ ...t, person: "" })));
-    }
-  };
-
-  // 拉取历史记录
-  const fetchHistory = async () => {
-    try {
-      const res = await fetch("/api/taskCheckSheet/dailytask");
-      if (!res.ok) throw new Error("Failed to fetch history");
-      const data = await res.json();
-      setHistory(Array.isArray(data) ? data : []);
-      setCurrentPage(1);
-    } catch (err) {
-      console.error(err);
       setHistory([]);
+    } finally {
+      setLoading(false);
     }
   };
 
+  // 初始化时获取所有数据
   useEffect(() => {
-    fetchServerDate();
+    fetchAllData();
   }, []);
-
-  // 当获取到日期后，再拉取当天任务和历史记录
-  useEffect(() => {
-    if (formattedDate) {
-      fetchTodayTasks();
-      fetchHistory();
-    }
-  }, [formattedDate]);
 
   // 保存
   const handleSave = async () => {
-    if (!formattedDate) return;
+    if (!formattedDate) {
+      alertRef.current?.open({ message: "日付が取得できていません" });
+      return;
+    }
+
     try {
       const res = await fetch("/api/taskCheckSheet/dailytask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ date: formattedDate, data: tasks }),
       });
-      if (res.ok) alertRef.current?.open({ message: "保存成功！" });
-      else alertRef.current?.open({ message: "保存失敗！" });
-      fetchTodayTasks();
-      fetchHistory();
+
+      if (res.ok) {
+        alertRef.current?.open({ message: "保存成功！" });
+
+        // 保存成功后刷新数据
+        const [todayRes, historyRes] = await Promise.all([
+          fetch(`/api/taskCheckSheet/todaytask?date=${formattedDate}`),
+          fetch("/api/taskCheckSheet/dailytask")
+        ]);
+
+        if (todayRes.ok) {
+          const todayRecord = await todayRes.json();
+          if (todayRecord && Array.isArray(todayRecord.daily_task)) {
+            const updatedTasks = taskList.map((t) => {
+              const dbTask = todayRecord.daily_task.find(
+                (d) => d.time === t.time && d.job === t.job
+              );
+              return { ...t, person: dbTask ? dbTask.person : "" };
+            });
+            setTasks(updatedTasks);
+          }
+        }
+
+        if (historyRes.ok) {
+          const historyData = await historyRes.json();
+          setHistory(Array.isArray(historyData) ? historyData : []);
+        }
+      } else {
+        alertRef.current?.open({ message: "保存失敗！" });
+      }
     } catch (err) {
       console.error(err);
       alertRef.current?.open({ message: "保存失敗！" });
@@ -123,9 +149,22 @@ export default function TaskCheckSheet() {
     setCurrentPageInput(String(currentPage));
   }, [currentPage]);
 
+  // 格式化日期显示
+  const formatDate = (dateStr) => {
+    const d = new Date(dateStr);
+    return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-gray-400 to-gray-900">
+        <div className="text-white text-xl">読み込み中...</div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-8 bg-gray-50 min-h-screen text-gray-800 bg-gradient-to-b from-gray-400 to-gray-900">
-      {/* <FallingImages numImages={50} /> */}
       <div className="flex justify-between items-center mb-6">
         <h2 className="relative text-x2 font-bold text-black">一日のタスク担当者チェックシート</h2>
         <span className="relative text-x1 font-bold text-black">{formattedDate}</span>
@@ -155,11 +194,11 @@ export default function TaskCheckSheet() {
                 onConfirm={handleSave}
                 buttonText="保存"
                 message="保存しますか"
-                buttonColor="bg-blue-500 hover:bg-blue-600"
+                buttonColor="save-button"
               />
             </div>
           </div>
-          <table className="w-full text-gray-800 bg-white/80 backdrop-blur-md rounded-xl border-0 border-collapse text-sm shadow-sm">
+          <table className="table-itam">
             <thead>
               <tr className="bg-gray-600 text-left text-white rounded-xl">
                 <th className="border border-gray-300 px-3 py-2 w-20">時間帯</th>
@@ -199,16 +238,10 @@ export default function TaskCheckSheet() {
               paginatedHistory.map((record, i) => (
                 <details key={i} className="border rounded-lg rounded-xl">
                   <summary className="bg-gray-200 px-4 py-2 cursor-pointer rounded-xl border-0 hover:bg-blue-50">
-                    {(() => {
-                      const d = new Date(record.date);
-                      return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(
-                        2,
-                        "0"
-                      )}/${String(d.getDate()).padStart(2, "0")}`;
-                    })()}
+                    {formatDate(record.date)}
                   </summary>
                   <div className="p-3 text-sm">
-                    <table className="w-full text-gray-800 bg-white/80 backdrop-blur-md rounded-2xl border-0 border-collapse text-sm shadow-sm">
+                    <table className="table-itam">
                       <thead>
                         <tr className="bg-gray-600 text-left text-white">
                           <th className="border px-2 py-1 w-20">時間帯</th>

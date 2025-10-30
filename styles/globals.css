@@ -177,6 +177,14 @@
         @apply h-1 border-0 bg-gradient-to-r from-gray-800 via-gray-600 to-transparent mt-10
     }
 
+    .table-itam {
+        @apply w-full text-gray-800 bg-white/80 backdrop-blur-md rounded-xl border-0 border-collapse text-base shadow-sm 
+    }
+
+    .save-button {
+        @apply bg-blue-500 hover:bg-blue-600
+    }
+
 }
 
 @keyframes fly {
