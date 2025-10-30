@@ -7,7 +7,7 @@ import ConfirmModal from "components/confirm";
 import { validSources, mapping } from 'app/config/config';
 import WarningModal from "components/warning";
 
-export default function ExcelFilterPage() {
+export default function FCSTMakerPage() {
   const [rows, setRows] = useState([]); // 朝/夜筛选后的结果
   const [rawData, setRawData] = useState([]); // 朝/夜原始数据
   const [mode, setMode] = useState("朝"); // 朝/夜模式

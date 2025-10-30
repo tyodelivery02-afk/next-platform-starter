@@ -8,7 +8,7 @@ import { House, Calendar, CheckSquare, Pen, Headset, CurrencyJpy } from "phospho
 const navItems = [
     { icon: <House size={70} />, href: '/', label: `HOME` },
     { icon: <CheckSquare size={70} />, href: '/taskCheckSheet', label: `TASK` },
-    { icon: <Calendar size={70} />, href: '/fcatmaker', label: `FCST作成` },
+    { icon: <Calendar size={70} />, href: '/fcstmaker', label: `FCST作成` },
     {
         icon: <svg xmlns="http://www.w3.org/2000/svg" width="70" height="70" fill="currentColor" viewBox="0 0 256 256">
             <path d="M88,224a16,16,0,1,1-16-16A16,16,0,0,1,88,224Zm128-16a16,16,0,1,0,16,16A16,16,0,0,0,216,208Zm24-32H56V75.31A15.86,15.86,0,0,0,51.31,64L29.66,42.34A8,8,0,0,0,18.34,53.66L40,75.31V176H32a8,8,0,0,0,0,16H240a8,8,0,0,0,0-16Z"></path>
@@ -16,9 +16,9 @@ const navItems = [
         href: '/momotrolley',
         label: `桃カゴ`
     },
-    { icon: <Pen size={70} />, href: '/', label: `FCST記入` },
-    { icon: <Headset size={70} />, href: '/', label: `メール` },
-    { icon: <CurrencyJpy size={70} />, href: '/', label: `賠償` },
+    { icon: <Pen size={70} />, href: '/fcatwrite', label: `FCST記入` },
+    { icon: <Headset size={70} />, href: '/customer', label: `メール` },
+    { icon: <CurrencyJpy size={70} />, href: '/compensation', label: `賠償` },
 ];
 
 export function Header() {
