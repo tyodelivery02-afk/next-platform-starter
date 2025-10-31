@@ -167,7 +167,6 @@ export default function TaskCheckSheet() {
     <div className="p-8 bg-gray-50 min-h-screen text-gray-800 bg-gradient-to-b from-gray-400 to-gray-900">
       <div className="flex justify-between items-center mb-6">
         <h2 className="relative text-x2 font-bold text-black">一日のタスク担当者チェックシート</h2>
-        <span className="relative text-x1 font-bold text-black">{formattedDate}</span>
       </div>
       <div
         className="w-full h-6 my-6"

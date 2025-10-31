@@ -222,3 +222,50 @@
 .move-animation {
     animation: move 6s ease-in-out infinite;
 }
+
+@layer components {
+  /* === 时钟样式 (react-clock) === */
+  .react-clock {
+    background-color: #b3b2b0; /* 表盘 */
+    border: 5px solid #575552; /* 边框 */
+    border-radius: 50%;
+    box-shadow:
+      0 4px 20px rgba(0, 0, 0, 0.3),
+      inset 0 0 10px rgba(0, 0, 0, 0.2),
+      inset 0 0 5px #fff3;
+  }
+
+  .react-clock__face {
+    background-color: #f8f3e6;
+    border-radius: 50%;
+  }
+
+  .react-clock__mark__body {
+    background-color: #3a2c1a; /* 刻度 */
+    width: 2px;
+  }
+
+  .react-clock__hand__body {
+    background-color: #3a2c1a; /* 时针分针颜色 */
+  }
+
+  .react-clock__second-hand__body {
+    background-color: #b30000; /* 秒针 */
+  }
+
+  .react-clock__second-hand__body::after {
+    content: "";
+    position: absolute;
+    background-color: #b30000;
+    border-radius: 50%;
+    width: 6px;
+    height: 6px;
+    top: -3px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  .react-clock__mark__number {
+    color: #3a1a2f;
+  }
+}

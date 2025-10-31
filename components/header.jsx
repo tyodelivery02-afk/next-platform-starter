@@ -4,6 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { House, Calendar, CheckSquare, Pen, Headset, CurrencyJpy } from "phosphor-react";
+import TimeClock from "components/clock"
 
 const navItems = [
     { icon: <House size={70} />, href: '/', label: `HOME` },
@@ -51,6 +52,7 @@ export function Header() {
                     )
                 })}
             </ul>
+            <div><TimeClock/></div>
         </nav>
     );
 }

@@ -17,7 +17,6 @@ export default function TrolleyStatusPage() {
     const [latestStatus, setLatestStatus] = useState({});
     const [recentRecords, setRecentRecords] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [formattedDate, setFormattedDate] = useState("");
 
     // 统一获取所有数据
     useEffect(() => {
@@ -30,7 +29,6 @@ export default function TrolleyStatusPage() {
                 const timeData = await timeRes.json();
                 const today = new Date(timeData.serverTime);
                 const dateStr = today.toISOString().split("T")[0];
-                setFormattedDate(dateStr);
 
                 // 并行请求所有API
                 const [latestRes, todayRes, recentRes] = await Promise.all([
@@ -73,9 +71,6 @@ export default function TrolleyStatusPage() {
                 setRecentRecords(recentData.data || []);
             } catch (err) {
                 console.error("データ取得エラー:", err);
-                // 降级处理：使用客户端时间
-                const today = new Date();
-                setFormattedDate(today.toISOString().split("T")[0]);
                 warningRef.current?.open({ message: "データの取得に失敗しました" });
             } finally {
                 setLoading(false);
@@ -89,43 +84,46 @@ export default function TrolleyStatusPage() {
         const trolleyId = trolleyList[colIndex];
         const currentLatestStatus = latestStatus[trolleyId];
 
-        // 检查朝和夜的数据情况
-        const morningHasData = data[0].some(status => status !== ""); // 朝这一行是否有数据
-        const nightHasData = data[1].some(status => status !== ""); // 夜这一行是否有数据
-
-        // 确定应该在哪一行进行检查
-        let shouldCheckThisRow = false;
-
-        if (morningHasData && !nightHasData) {
-            // 朝有数据，夜没有数据 → 只在夜这一行检查
-            shouldCheckThisRow = (rowIndex === 1);
-        } else if (!morningHasData && !nightHasData) {
-            // 朝和夜都没有数据 → 只在朝这一行检查
-            shouldCheckThisRow = (rowIndex === 0);
-        } else {
-            // 其他情况（夜有数据或朝夜都有数据）→ 都检查
-            shouldCheckThisRow = true;
-        }
-
-        // 新增：第二行(夜)需要检查第一行(朝)对应位置是否有数据
+        // 优先检查：夜这一行输入时，朝对应位置必须有数据
         if (rowIndex === 1 && data[0][colIndex] === "") {
             warningRef.current?.open({ message: `朝の桃${trolleyId}号車の状態が未入力です。先に朝のデータを入力してください` });
             return;
         }
 
-        // 只在需要检查的行执行状态验证
-        if (shouldCheckThisRow) {
+        // 检查当前这个桃カゴ在两行的数据情况
+        const thisTrolleyMorningHasData = data[0][colIndex] !== "";
+        const thisTrolleyNightHasData = data[1][colIndex] !== "";
+
+        // 确定当前这个桃カゴ是否需要进行状态冲突检查
+        let shouldCheckThisCell = false;
+
+        if (thisTrolleyMorningHasData && !thisTrolleyNightHasData) {
+            // 这个桃カゴ：朝有数据，夜没有数据 → 只在夜这一行检查
+            shouldCheckThisCell = (rowIndex === 1) || (rowIndex === 0 && thisTrolleyMorningHasData);
+        } else if (!thisTrolleyMorningHasData && !thisTrolleyNightHasData) {
+            // 这个桃カゴ：朝和夜都没有数据 → 只在朝这一行检查
+            shouldCheckThisCell = (rowIndex === 0);
+        } else {
+            // 其他情况（夜有数据或朝夜都有数据）→ 都检查
+            shouldCheckThisCell = true;
+        }
+
+        // 对当前单元格进行状态冲突检查
+        if (shouldCheckThisCell && value !== "") {
+            // 检查：选择"出"时，最新状态不能是"出庫"(2)
             if (value === "出" && currentLatestStatus === 2) {
                 warningRef.current?.open({ message: `桃${trolleyId}号車は既に出庫状態です。重複出庫できません` });
                 return;
             }
 
+            // 检查：选择"戻"时，最新状态不能是"在庫"(1)
             if (value === "戻" && currentLatestStatus === 1) {
                 warningRef.current?.open({ message: `桃${trolleyId}号車は既に在庫状態です。重複返却できません` });
                 return;
             }
         }
 
+        // 通过所有检查，更新数据
         const newData = [...data];
         newData[rowIndex][colIndex] = value;
         setData(newData);
@@ -252,7 +250,6 @@ export default function TrolleyStatusPage() {
         <div className="p-8 bg-gray-50 min-h-screen text-gray-800 bg-gradient-to-b from-gray-400 to-gray-900">
             <div className="flex justify-between items-center mb-6">
                 <h2 className="relative text-x2 font-bold text-black">桃カゴ車チェック</h2>
-                <span className="relative text-x1 font-bold text-black">{formattedDate}</span>
             </div>
             <div
                 className="w-full h-6 my-6"
@@ -273,8 +270,8 @@ export default function TrolleyStatusPage() {
                         <tr>
                             {trolleyList.map((id) => (
                                 <th key={id} className="border border-white p-2 bg-gray-600 text-white">
-                                    <span className="text-pink-400">NO.</span>
-                                    <span className="text-pink-400 ml-1">{id}</span>
+                                    <span className="text-white">No.</span>
+                                    <span className="text-white">{id}</span>
                                 </th>
                             ))}
                         </tr>
@@ -304,8 +301,8 @@ export default function TrolleyStatusPage() {
                             <th className="border p-2 bg-gray-600 text-white">時間帯</th>
                             {trolleyList.map((id) => (
                                 <th key={id} className="border border-white p-2 bg-gray-600">
-                                    <span className="text-pink-400">NO.</span>
-                                    <span className="text-pink-400 ml-1">{id}</span>
+                                    <span className="text-white">No.</span>
+                                    <span className="text-white">{id}</span>
                                 </th>
                             ))}
                             <th className="border p-2 bg-gray-600 text-white">更新者</th>
@@ -365,13 +362,14 @@ export default function TrolleyStatusPage() {
                         ))}
                     </tbody>
                 </table>
+                <span className="text-orange-200">※今日以前のデータを修正したい場合は、管理員にご連絡ください</span>
             </div>
 
             {/* === 最近7天记录表 === */}
             <div className="mb-8">
-                <h3 className="text-lg font-semibold mb-2 text-center text-white">
+                <h2 className="text-lg font-semibold mb-2 text-center text-white">
                     最近7日間の記録
-                </h3>
+                </h2>
                 <div className="space-y-3">
                     {sortedDates.length === 0 ? (
                         <div className="text-center text-white p-4">
@@ -381,22 +379,22 @@ export default function TrolleyStatusPage() {
                         sortedDates.map((date) => (
                             <details key={date} className="bg-white/80 rounded-xl shadow-lg">
                                 <summary className="cursor-pointer p-3 font-semibold text-lg hover:bg-white rounded-xl transition-colors">
-                                    {formattedDate}
+                                    {formatDate(date)}
                                 </summary>
                                 <div className="p-3">
                                     <div className="overflow-x-auto">
-                                        <table className="w-full border-gray-300 rounded-xl border-0 text-center bg-white rounded-lg">
+                                        <table className="table-itam text-center">
                                             <thead>
                                                 <tr>
-                                                    <th className="border p-2 bg-gray-600 text-white">時間</th>
-                                                    <th className="border p-2 bg-gray-600 text-white">桃カゴID</th>
+                                                    <th className="border p-2 bg-gray-600 text-white">時間帯</th>
+                                                    <th className="border p-2 bg-gray-600 text-white">桃カゴNo</th>
                                                     <th className="border p-2 bg-gray-600 text-white">状態</th>
                                                     <th className="border p-2 bg-gray-600 text-white">更新者</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 {groupedRecords[date].map((record, index) => (
-                                                    <tr key={index} className="hover:bg-gray-100">
+                                                    <tr key={index} className="hover:bg-gray-300">
                                                         <td className="border p-2">
                                                             {getAmPmText(record.am_pm)}
                                                         </td>
@@ -405,8 +403,8 @@ export default function TrolleyStatusPage() {
                                                         </td>
                                                         <td className="border p-2">
                                                             <span className={`px-2 py-1 rounded ${record.status === 1
-                                                                ? 'bg-green-200 text-green-800'
-                                                                : 'bg-red-200 text-red-800'
+                                                                ? 'bg-blue-200 text-blue-800'
+                                                                : 'bg-orange-200 text-orange-800'
                                                                 }`}>
                                                                 {getStatusShortText(record.status)}
                                                             </span>
