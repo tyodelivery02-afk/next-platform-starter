@@ -26,12 +26,12 @@ const imageUrls = [
   "/images/snow8.svg",
 ];
 
-function FallingImages({ numImages = 70 }) {
+function FallingImages({ numImages = 50 }) {
   const [images] = useState(() =>
     Array.from({ length: numImages }).map(() => ({
       url: imageUrls[Math.floor(Math.random() * imageUrls.length)],
       left: Math.random() * 100,
-      size: 20 + Math.random() * 40,
+      size: 20 + Math.random() * 20,
       duration: 5 + Math.random() * 10,
       delay: Math.random() * 5,
       color: ["#ffffffff", "#f4a7b9", "#ffb6c1", "#ff69b4", "#87cefa", "#a3e4d7"][

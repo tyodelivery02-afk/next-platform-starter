@@ -166,7 +166,7 @@ export default function TaskCheckSheet() {
   return (
     <div className="p-8 bg-gray-50 min-h-screen text-gray-800 bg-gradient-to-b from-gray-400 to-gray-900">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="relative text-x2 font-bold text-black">一日のタスク担当者チェックシート</h2>
+        <h2 className="relative text-x2 font-bold text-black text-shadow">一日のタスク担当者チェックシート</h2>
       </div>
       <div
         className="w-full h-6 my-6"
@@ -263,7 +263,7 @@ export default function TaskCheckSheet() {
                 </details>
               ))
             ) : (
-              <p className="text-sm text-gray-500">記録なし</p>
+              <p className="text-sm text-gray-800">記録なし</p>
             )}
           </div>
 

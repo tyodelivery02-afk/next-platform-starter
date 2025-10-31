@@ -14,7 +14,7 @@ export default function Home() {
       {/* <h1 className="text-2xl font-bold mb-8">メニュー</h1> */}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-250">
-        <FallingImages numImages={50} />
+        <FallingImages numImages={100} />
         {/* {features.map((f, idx) => (
           <Link
             key={idx}

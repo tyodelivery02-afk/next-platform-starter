@@ -43,7 +43,8 @@ export function Header() {
                             <Link
                                 href={item.href}
                                 className={`flex flex-col items-center px-1.5 py-1 sm:px-3 sm:py-2 
-                                           ${isActive ? 'text-orange-200' : 'text-black'} hover:text-gray-800 no-underline`}
+                                           ${isActive ? 'text-orange-200 hover:text-orange-300 '
+                                        : 'text-black hover:text-gray-800 '} no-underline`}
                             >
                                 {item.icon}
                                 <span className='font-medium'>{item.label}</span>
@@ -52,7 +53,7 @@ export function Header() {
                     )
                 })}
             </ul>
-            <div><TimeClock/></div>
+            <div><TimeClock /></div>
         </nav>
     );
 }

@@ -233,7 +233,7 @@ export default function FCSTMakerPage() {
       : "bg-gradient-to-b from-gray-400 to-gray-900"
       }`}
     >
-      <h2 className="text-x2 font-bold text-black">スパーフォーキャストメーカー</h2>
+      <h2 className="relative text-x2 font-bold text-black text-shadow">スーパーフォーキャストメーカー</h2>
       <div
         className="w-full h-6 my-6"
         style={{

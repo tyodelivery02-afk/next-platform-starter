@@ -249,7 +249,7 @@ export default function TrolleyStatusPage() {
     return (
         <div className="p-8 bg-gray-50 min-h-screen text-gray-800 bg-gradient-to-b from-gray-400 to-gray-900">
             <div className="flex justify-between items-center mb-6">
-                <h2 className="relative text-x2 font-bold text-black">桃カゴ車チェック</h2>
+                <h2 className="relative text-x2 font-bold text-black text-shadow">桃カゴ車チェック</h2>
             </div>
             <div
                 className="w-full h-6 my-6"
@@ -362,7 +362,7 @@ export default function TrolleyStatusPage() {
                         ))}
                     </tbody>
                 </table>
-                <span className="text-orange-200">※今日以前のデータを修正したい場合は、管理員にご連絡ください</span>
+                <span className="text-orange-200">※今日以前のデータを修正したい場合は、スーパー管理員にご連絡ください</span>
             </div>
 
             {/* === 最近7天记录表 === */}
