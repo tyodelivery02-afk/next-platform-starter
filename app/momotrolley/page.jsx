@@ -5,6 +5,7 @@ import { trolleyList, personList } from "app/config/config";
 import ConfirmModal from "components/confirm";
 import AlertModal from "components/alert";
 import WarningModal from "components/warning";
+import LoadingModal from "components/loading";
 
 export default function TrolleyStatusPage() {
     const alertRef = useRef();
@@ -17,6 +18,7 @@ export default function TrolleyStatusPage() {
     const [latestStatus, setLatestStatus] = useState({});
     const [recentRecords, setRecentRecords] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [showExtraColumns, setShowExtraColumns] = useState(true);
 
     // 统一获取所有数据
     useEffect(() => {
@@ -241,7 +243,7 @@ export default function TrolleyStatusPage() {
     if (loading) {
         return (
             <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-gray-400 to-gray-900">
-                <div className="text-white text-xl">読み込み中...</div>
+                <LoadingModal show={loading} message="ローディング..." />
             </div>
         );
     }
@@ -262,9 +264,9 @@ export default function TrolleyStatusPage() {
 
             {/* === 最新状态表 === */}
             <div className="items-center space-x-2 mb-4">
-                <h3 className="text-lg font-semibold mb-2 text-center text-white">
+                {/* <h3 className="text-lg font-semibold mb-2 text-center text-white">
                     現状
-                </h3>
+                </h3> */}
                 <table className="table-itam text-center">
                     <thead>
                         <tr>
@@ -293,71 +295,90 @@ export default function TrolleyStatusPage() {
                 </table>
             </div>
 
+            {/* === 列显示切换按钮 === */}
+            <div className="mb-4 flex justify-end">
+                <button
+                    onClick={() => setShowExtraColumns(prev => !prev)}
+                    className={`px-4 py-2 rounded-lg font-bold text-white transition ${showExtraColumns
+                        ? "bg-gray-700 hover:bg-gray-600" : "bg-gray-700 hover:bg-gray-600"
+                        }`}
+                >
+                    {showExtraColumns ? "整列" : "整列しない"}
+                </button>
+            </div>
+
             {/* === 登録用表格 === */}
             <div className="mb-8">
                 <table className="table-itam text-center">
                     <thead>
                         <tr>
-                            <th className="border p-2 bg-gray-600 text-white">時間帯</th>
+                            {showExtraColumns && (
+                                <th className="border p-2 bg-gray-600 text-white">時間帯</th>
+                            )}
                             {trolleyList.map((id) => (
                                 <th key={id} className="border border-white p-2 bg-gray-600">
                                     <span className="text-white">No.</span>
                                     <span className="text-white">{id}</span>
                                 </th>
                             ))}
-                            <th className="border p-2 bg-gray-600 text-white">更新者</th>
-                            <th className="border p-2 bg-gray-600 text-white"></th>
+                            {showExtraColumns && (
+                                <>
+                                    <th className="border p-2 bg-gray-600 text-white">更新者</th>
+                                    <th className="border p-2 bg-gray-600 text-white"></th>
+                                </>
+                            )}
                         </tr>
                     </thead>
                     <tbody>
                         {timeSlots.map((slot, rowIndex) => (
                             <tr key={slot}>
-                                <td className="border p-2 font-bold hover:bg-blue-50">{slot}</td>
+                                {showExtraColumns && (
+                                    <td className="border p-2 font-bold hover:bg-blue-50">{slot}</td>
+                                )}
                                 {trolleyList.map((id, colIndex) => (
                                     <td key={id} className="border p-2 hover:bg-blue-50">
                                         <select
                                             value={data[rowIndex][colIndex]}
-                                            onChange={(e) =>
-                                                handleChange(rowIndex, colIndex, e.target.value)
-                                            }
+                                            onChange={(e) => handleChange(rowIndex, colIndex, e.target.value)}
                                             className={`border rounded-lg p-1 
-                                                ${data[rowIndex][colIndex] === `戻`
-                                                    ? `text-blue-500 hover:bg-red-50`
-                                                    : data[rowIndex][colIndex] === `出`
-                                                        ? `text-red-500 hover:bg-red-50`
-                                                        : data[rowIndex][colIndex] === ``
-                                                            ? `hover:bg-red-50` : ``}`}
+              ${data[rowIndex][colIndex] === "戻"
+                                                    ? "text-blue-500 hover:bg-red-50"
+                                                    : data[rowIndex][colIndex] === "出"
+                                                        ? "text-red-500 hover:bg-red-50"
+                                                        : data[rowIndex][colIndex] === ""
+                                                            ? "hover:bg-red-50"
+                                                            : ""}`}
                                         >
                                             {statusOptions.map((opt) => (
-                                                <option key={opt} value={opt}>
-                                                    {opt}
-                                                </option>
+                                                <option key={opt} value={opt}>{opt}</option>
                                             ))}
                                         </select>
                                     </td>
                                 ))}
-                                <td className="border p-2 hover:bg-blue-50">
-                                    <select
-                                        value={updaters[rowIndex]}
-                                        onChange={(e) => handleUpdaterChange(rowIndex, e.target.value)}
-                                        className="border text-black rounded-lg p-1 hover:bg-red-50"
-                                    >
-                                        <option value="">選択</option>
-                                        {personList.map((u) => (
-                                            <option key={u} value={u}>
-                                                {u}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </td>
-                                <td className="border p-2 hover:bg-blue-50">
-                                    <ConfirmModal
-                                        onConfirm={() => handleSubmitRow(rowIndex)}
-                                        buttonText="保存"
-                                        message="保存しますか"
-                                        buttonColor="save-button"
-                                    />
-                                </td>
+                                {showExtraColumns && (
+                                    <>
+                                        <td className="border p-2 hover:bg-blue-50">
+                                            <select
+                                                value={updaters[rowIndex]}
+                                                onChange={(e) => handleUpdaterChange(rowIndex, e.target.value)}
+                                                className="border text-black rounded-lg p-1 hover:bg-red-50"
+                                            >
+                                                <option value="">選択</option>
+                                                {personList.map((u) => (
+                                                    <option key={u} value={u}>{u}</option>
+                                                ))}
+                                            </select>
+                                        </td>
+                                        <td className="border p-2 hover:bg-blue-50">
+                                            <ConfirmModal
+                                                onConfirm={() => handleSubmitRow(rowIndex)}
+                                                buttonText="保存"
+                                                message="保存しますか"
+                                                buttonColor="save-button"
+                                            />
+                                        </td>
+                                    </>
+                                )}
                             </tr>
                         ))}
                     </tbody>

@@ -21,7 +21,7 @@ export default function TimeClock() {
         secondHandWidth={1}
         size={80}
       />
-      <div className="text-orange-800 font-serif mt-4 text-xl tracking-wider">
+      <div className="text-black font-serif mt-4 text-xl tracking-wider">
         {value.toLocaleDateString("ja-JP", {
           month: "2-digit",
         })}

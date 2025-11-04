@@ -1,38 +1,46 @@
 "use client";
-import { useState,useRef } from "react";
-import FallingImages from 'components/fallingImages';
+import { useState, useRef } from "react";
+import FallingImages from "components/fallingImages";
 import WarningModal from "components/warning";
+import LoadingModal from "components/loading";
 
 export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const warningRef = useRef();
 
   const handleLogin = async () => {
-    const res = await fetch("/api/loginverify", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password }),
-    });
-    const data = await res.json();
-    if (data.success) {
-      sessionStorage.setItem("sessionToken", data.token);
-      window.location.reload();
-    } else {
-      warningRef.current?.open({ message: "パスワード不正" });
+    setLoading(true);
+    try {
+      const res = await fetch("/api/loginverify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        sessionStorage.setItem("sessionToken", data.token);
+        window.location.reload();
+      } else {
+        warningRef.current?.open({ message: "パスワード不正" });
+      }
+    } catch (err) {
+      console.error(err);
+      setError("ログインエラーが発生しました");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="relative min-h-screen flex flex-col justify-center items-center bg-gradient-to-b from-blue-700 to-blue-900
- overflow-hidden">
-      {/* 飘落背景 */}
+    <div className="relative min-h-screen flex flex-col justify-center items-center bg-gradient-to-b from-blue-700 to-blue-900 overflow-hidden">
       <FallingImages numImages={150} />
 
-      {/* 登录输入融入背景 */}
       <div className="relative z-10 flex flex-col items-center">
         <h1 className="text-white text-2xl font-bold mb-4 drop-shadow-lg">
-          パスワード入力
+          パスワード
         </h1>
         <input
           type="password"
@@ -43,15 +51,16 @@ export default function LoginPage() {
         />
         <button
           onClick={handleLogin}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded transition"
+          disabled={loading}
+          className="px-6 py-2 rounded transition bg-blue-600 hover:bg-blue-700 text-white"
         >
           ログイン
         </button>
-        {error && (
-          <p className="text-red-500 mt-2 drop-shadow-lg">{error}</p>
-        )}
+        {error && <p className="text-red-500 mt-2 drop-shadow-lg">{error}</p>}
       </div>
+
       <WarningModal ref={warningRef} />
+      <LoadingModal show={loading} message="ログイン..." />
     </div>
   );
 }

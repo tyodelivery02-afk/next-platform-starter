@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from "react";
 import ConfirmModal from "components/confirm";
 import AlertModal from "components/alert";
 import { taskList, personList } from 'app/config/config';
+import LoadingModal from "components/loading";
 
 export default function TaskCheckSheet() {
   const alertRef = useRef();
@@ -158,7 +159,7 @@ export default function TaskCheckSheet() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-gray-400 to-gray-900">
-        <div className="text-white text-xl">読み込み中...</div>
+        <LoadingModal show={loading} message="ローディング..." />
       </div>
     );
   }

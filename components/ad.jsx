@@ -27,7 +27,7 @@ export function FloatingCharacter() {
     <div className="fixed bottom-8 right-8 z-50 flex flex-col items-center">
       {/* 对话气泡 */}
       {showBubble && (
-        <div className="mb-2 w-64 p-2 rounded-xl bg-white/90 text-black shadow-lg text-sm text-center relative animate-fadeIn">
+        <div className="mb-2 w-64 p-2 rounded-xl bg-white/60 text-black shadow-lg text-sm text-center relative animate-fadeIn">
           {currentMessages[index]}
           <div className="absolute bottom-[-6px] left-1/2 -translate-x-1/2 w-3 h-3 bg-white/90 rotate-45 shadow-md"></div>
         </div>
