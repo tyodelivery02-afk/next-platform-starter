@@ -29,7 +29,7 @@ export default function AreaEditor({ mode = "朝" }) {
 
   // 增加地区
   const addRegion = () => {
-    setData((prev) => [...prev, { region_name: "新地区", keywords: [""] }]);
+    setData((prev) => [...prev, { region_name: "", keywords: [""] }]);
   };
 
   // 增加关键词列
@@ -100,7 +100,7 @@ export default function AreaEditor({ mode = "朝" }) {
         </span>
         <svg
           className="animate-spin w-10 h-10 mb-4"
-          style={{ animationDuration: '2s' }}
+          style={{ animationDuration: '3.5s' }}
           xmlns="http://www.w3.org/2000/svg"
           width="32"
           height="32"
@@ -113,13 +113,13 @@ export default function AreaEditor({ mode = "朝" }) {
       <hr className="line-item" />
       {show && (
         <div className="fixed inset-0 bg-gray-800/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl shadow-2xl border border-gray-700 w-full max-w-5xl max-h-[85vh] overflow-hidden flex flex-col">
+          <div className="bg-gray-900/30 rounded-2xl shadow-2xl border border-gray-700 w-full max-w-5xl max-h-[85vh] overflow-hidden flex flex-col">
             {/* Header */}
             <div className="flex items-center justify-between p-6 border-b border-gray-700">
               <h2 className="text-2xl font-bold text-white">エリア編集</h2>
               <button
                 onClick={() => setShow(false)}
-                className="text-red-400 hover:text-white hover:bg-gray-700 rounded-lg p-2 transition-all duration-200"
+                className="text-white hover:bg-gray-700 rounded-lg p-2 transition-all duration-200"
               >
                 <X size={24} weight="bold" />
               </button>
@@ -127,15 +127,15 @@ export default function AreaEditor({ mode = "朝" }) {
 
             {/* Table Container */}
             <div className="flex-1 overflow-y-auto p-6">
-              <div className="bg-gray-800/50 rounded-xl border border-gray-700 overflow-hidden">
+              <div className="bg-gray-800/30 rounded-xl border border-gray-700 overflow-hidden">
                 <table className="w-full">
                   <thead>
-                    <tr className="bg-gradient-to-r from-gray-700 to-gray-800 text-white">
+                    <tr className="bg-gray-800/30 text-white">
                       <th className="border-b border-gray-600 p-4 text-left font-semibold w-1/5">
                         エリア
                       </th>
                       <th className="border-b border-gray-600 p-4 text-left font-semibold">
-                        キーワード
+                        検索キーワード
                       </th>
                       <th className="border-b border-gray-600 p-4 text-center font-semibold w-24">
                       </th>
@@ -145,14 +145,14 @@ export default function AreaEditor({ mode = "朝" }) {
                     {data.map((region, i) => (
                       <tr
                         key={i}
-                        className="hover:bg-gray-700/30 transition-colors border-b border-gray-700/50 last:border-b-0"
+                        className="hover:bg-gray-800/70 transition-colors border-b border-gray-700/50 last:border-b-0"
                       >
                         <td className="p-4">
                           <input
                             className="bg-gray-700 border border-gray-600 rounded-lg w-full p-2.5 text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                             value={region.region_name}
                             onChange={(e) => updateRegion(i, e.target.value)}
-                            placeholder="地区名を入力"
+                            placeholder="エリア"
                           />
                         </td>
                         <td className="p-4">
@@ -165,7 +165,7 @@ export default function AreaEditor({ mode = "朝" }) {
                                   onChange={(e) =>
                                     updateValue(i, j, e.target.value)
                                   }
-                                  placeholder="キーワード"
+                                  placeholder="検索キーワード"
                                 />
                                 <button
                                   onClick={() => deleteKeyword(i, j)}
@@ -200,7 +200,7 @@ export default function AreaEditor({ mode = "朝" }) {
             </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-between p-6 border-t border-gray-700 bg-gray-800/50">
+            <div className="flex items-center justify-between p-6 border-t border-gray-700 bg-gray-800/30">
               <button
                 onClick={addRegion}
                 className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm"

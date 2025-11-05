@@ -7,6 +7,7 @@ import ConfirmModal from "components/confirm";
 import { validSources } from 'app/config/config';
 import WarningModal from "components/warning";
 import AreaEditor from "components/areaSearch";
+import LoadingModal from "components/loading";
 
 export default function FCSTMakerPage() {
   const [rows, setRows] = useState([]); // 朝/夜筛选后的结果
@@ -20,6 +21,8 @@ export default function FCSTMakerPage() {
   const [regionOrder, setRegionOrder] = useState([]);
   const [editingCell, setEditingCell] = useState(null);
   const [editValue, setEditValue] = useState("");
+  const [file, setFile] = useState(null);
+  const [loading, setLoading] = useState(false);
   const warningRef = useRef();
 
   // ------------------- 朝/夜表格 -------------------
@@ -111,11 +114,13 @@ export default function FCSTMakerPage() {
   };
 
   const handleStatsFile = (e) => {
+
     const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
     reader.onload = async (event) => {
+      setLoading(true);
       try {
         const arrayBuffer = event.target.result;
         const workbook = XLSX.read(arrayBuffer, { type: "array" });
@@ -154,6 +159,9 @@ export default function FCSTMakerPage() {
         processStats(data, mapping, sortedOrder);
       } catch (err) {
         console.error("handleStatsFile error:", err);
+        setLoading(false);
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -228,6 +236,7 @@ export default function FCSTMakerPage() {
       return;
     }
 
+    setLoading(true);
     const formData = new FormData();
     const excelname = file.name;
     formData.append("file", file);
@@ -261,6 +270,9 @@ export default function FCSTMakerPage() {
     } catch (err) {
       console.error("Excel 上传/处理失败:", err);
       alert("处理 Excel 文件失败:\n" + err.message);
+      setLoading(false);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -425,6 +437,7 @@ export default function FCSTMakerPage() {
         </div>
       </div>
       <WarningModal ref={warningRef} />
+      <LoadingModal show={loading} message="Executing..." />
     </div>
   );
 }
