@@ -7,7 +7,7 @@ export default function ConfirmModal({
   title = "確認",
   message = "",
   buttonText = "",
-  buttonColor = "bg-gray-400 hover:bg-gray-500",
+  buttonColor = "save-button",
 }) {
   const [isOpen, setIsOpen] = useState(false);
 

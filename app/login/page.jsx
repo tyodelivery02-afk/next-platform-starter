@@ -60,7 +60,7 @@ export default function LoginPage() {
       </div>
 
       <WarningModal ref={warningRef} />
-      <LoadingModal show={loading} message="ログイン..." />
+      <LoadingModal show={loading} message="Logging..." />
     </div>
   );
 }

@@ -243,7 +243,7 @@ export default function TrolleyStatusPage() {
     if (loading) {
         return (
             <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-gray-400 to-gray-900">
-                <LoadingModal show={loading} message="ローディング..." />
+                <LoadingModal show={loading} message="Loading..." />
             </div>
         );
     }
@@ -374,7 +374,6 @@ export default function TrolleyStatusPage() {
                                                 onConfirm={() => handleSubmitRow(rowIndex)}
                                                 buttonText="保存"
                                                 message="保存しますか"
-                                                buttonColor="save-button"
                                             />
                                         </td>
                                     </>

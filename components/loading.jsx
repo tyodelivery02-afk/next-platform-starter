@@ -9,7 +9,6 @@ export default function Loading({ show, message = "処理中..." }) {
       className="fixed inset-0 z-[9999] flex items-center justify-center
       bg-black/50 backdrop-blur-sm select-none"
     >
-      {/* 弹窗容器 */}
       <div
         className="flex flex-col items-center justify-center
         bg-white/10 border border-white/20 rounded-2xl px-10 py-8 shadow-2xl

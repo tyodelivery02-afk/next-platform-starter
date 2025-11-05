@@ -4,6 +4,7 @@ import ConfirmModal from "components/confirm";
 import AlertModal from "components/alert";
 import { taskList, personList } from 'app/config/config';
 import LoadingModal from "components/loading";
+import WarningModal from "components/warning";
 
 export default function TaskCheckSheet() {
   const alertRef = useRef();
@@ -15,6 +16,7 @@ export default function TaskCheckSheet() {
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 30;
+  const warningRef = useRef();
 
   // 并行获取所有数据
   const fetchAllData = async () => {
@@ -81,7 +83,7 @@ export default function TaskCheckSheet() {
   // 保存
   const handleSave = async () => {
     if (!formattedDate) {
-      alertRef.current?.open({ message: "日付が取得できていません" });
+      warningRef.current?.open({ message: "日付が取得できていません" });
       return;
     }
 
@@ -159,7 +161,7 @@ export default function TaskCheckSheet() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-gray-400 to-gray-900">
-        <LoadingModal show={loading} message="ローディング..." />
+        <LoadingModal show={loading} message="Loading..." />
       </div>
     );
   }
@@ -194,7 +196,6 @@ export default function TaskCheckSheet() {
                 onConfirm={handleSave}
                 buttonText="保存"
                 message="保存しますか"
-                buttonColor="save-button"
               />
             </div>
           </div>
@@ -319,6 +320,7 @@ export default function TaskCheckSheet() {
         </div>
       </div>
       <AlertModal ref={alertRef} />
+      <WarningModal ref={warningRef} />
     </div>
   );
 }

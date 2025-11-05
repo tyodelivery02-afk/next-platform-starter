@@ -4,8 +4,9 @@ import * as XLSX from "xlsx";
 import dayjs from "dayjs";
 import { MoonStars, Sun } from "phosphor-react";
 import ConfirmModal from "components/confirm";
-import { validSources, mapping } from 'app/config/config';
+import { validSources } from 'app/config/config';
 import WarningModal from "components/warning";
+import AreaEditor from "components/areaSearch";
 
 export default function FCSTMakerPage() {
   const [rows, setRows] = useState([]); // 朝/夜筛选后的结果
@@ -16,6 +17,9 @@ export default function FCSTMakerPage() {
   const [statsRows, setStatsRows] = useState([]); // 地区统计表格数据
   const [statsRawData, setStatsRawData] = useState([]); // 地区统计原始数据
   const [isStatsOpen, setIsStatsOpen] = useState(true); // 统计表折叠状态
+  const [regionOrder, setRegionOrder] = useState([]);
+  const [editingCell, setEditingCell] = useState(null);
+  const [editValue, setEditValue] = useState("");
   const warningRef = useRef();
 
   // ------------------- 朝/夜表格 -------------------
@@ -85,7 +89,7 @@ export default function FCSTMakerPage() {
 
   //0~14:朝;14~23:夜
   useEffect(() => {
-    const hour = new Date().getHours(); 
+    const hour = new Date().getHours();
     if (hour >= 0 && hour < 14) {
       setMode("朝");
     } else {
@@ -94,79 +98,6 @@ export default function FCSTMakerPage() {
   }, []);
 
   // ------------------- 地区统计 -------------------
-  const handleStatsFile = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const arrayBuffer = event.target.result;
-      const workbook = XLSX.read(arrayBuffer, { type: "array" });
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const data = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-      setStatsRawData(data);
-      processStats(data);
-    };
-
-    reader.readAsArrayBuffer(file);
-  };
-
-  const processStats = (data) => {
-    if (!Array.isArray(data)) return;
-
-    const groupMap = {};
-    const totals = {};
-
-    data.forEach((row, idx) => {
-      if (idx === 0) return;
-      if (!row || !Array.isArray(row)) return;
-
-      const E = row[4]; // E列
-      const D = row[3]; // D列
-      const L = row[11]; // L列
-      if (!E || !L) return;
-      if (!String(D).startsWith("E")) return;
-
-      if (!groupMap[E]) {
-        groupMap[E] = {};
-        Object.keys(mapping).forEach((key) => (groupMap[E][key] = 0));
-      }
-
-      Object.entries(mapping).forEach(([key, keywords]) => {
-        if (keywords.some((kw) => String(L).startsWith(kw))) {
-          groupMap[E][key] += 1;
-        }
-      });
-    });
-
-    Object.entries(groupMap).forEach(([E, counts]) => {
-      const line = [E];
-      Object.keys(mapping).forEach((key) => {
-        line.push(counts[key]);
-        totals[key] = (totals[key] || 0) + counts[key];
-      });
-      setStatsRows((prev) => [...prev, line]);
-    });
-
-    // 总计行
-    const total1 = ["総計1"];
-    const sumOsakaTokyo = (totals["大阪"] || 0) + (totals["東京"] || 0);
-    Object.keys(mapping).forEach((key) => {
-      if (key === "大阪") total1.push(sumOsakaTokyo ? `${((totals[key] / sumOsakaTokyo) * 100).toFixed(1)}%` : "0%");
-      else if (key === "東京") total1.push(sumOsakaTokyo ? `${((totals[key] / sumOsakaTokyo) * 100).toFixed(1)}%` : "0%");
-      else total1.push(totals[key] || 0);
-    });
-
-    const total2 = ["総計2"];
-    Object.keys(mapping).forEach((key) => total2.push(totals[key] || 0));
-
-    setStatsRows((prev) => [...prev, total1, total2]);
-  };
-
-  //单元格编辑
-  const [editingCell, setEditingCell] = useState(null); // 当前正在编辑的单元格 {row, col}
-  const [editValue, setEditValue] = useState("");       // 编辑中的值
-
   const handleEdit = (rowIndex, colIndex, cellValue) => {
     setEditingCell({ row: rowIndex, col: colIndex });
     setEditValue(cellValue);
@@ -179,8 +110,113 @@ export default function FCSTMakerPage() {
     setEditingCell(null);
   };
 
-  //エクスポート
-  const [file, setFile] = useState(null);
+  const handleStatsFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const arrayBuffer = event.target.result;
+        const workbook = XLSX.read(arrayBuffer, { type: "array" });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const data = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+        setStatsRawData(data);
+
+        const res = await fetch("/api/fcatmaker/area_search");
+        if (!res.ok) {
+          console.error("地区データの取得に失敗しました:", res.status);
+          return;
+        }
+
+        const areas = await res.json();
+        const mapping = {};
+        let order = [];
+
+        areas.forEach((a) => {
+          mapping[a.region_name] = Array.isArray(a.keywords)
+            ? a.keywords
+            : JSON.parse(a.keywords || "[]");
+          order.push(a.region_name);
+        });
+
+        const osaka = order.find(r => r === "大阪");
+        const tokyo = order.find(r => r === "東京");
+        const others = order.filter(r => r !== "大阪" && r !== "東京");
+
+        const sortedOrder = [
+          ...(osaka ? [osaka] : []),
+          ...(tokyo ? [tokyo] : []),
+          ...others
+        ];
+
+        setRegionOrder(sortedOrder);
+        processStats(data, mapping, sortedOrder);
+      } catch (err) {
+        console.error("handleStatsFile error:", err);
+      }
+    };
+
+    reader.readAsArrayBuffer(file);
+  };
+
+  const processStats = (data, mapping, regionOrder) => {
+    if (!Array.isArray(data) || !mapping || typeof mapping !== "object") return;
+
+    const groupMap = {};
+    const totals = {};
+
+    data.forEach((row, idx) => {
+      if (idx === 0) return;
+      if (!row || !Array.isArray(row)) return;
+
+      const E = row[4];
+      const D = row[3];
+      const L = row[11];
+      if (!E || !L) return;
+      if (!String(D).startsWith("E")) return;
+
+      if (!groupMap[E]) {
+        groupMap[E] = {};
+        regionOrder.forEach((key) => (groupMap[E][key] = 0));
+      }
+
+      Object.entries(mapping).forEach(([key, keywords]) => {
+        if (keywords.some((kw) => String(L).startsWith(kw))) {
+          groupMap[E][key] += 1;
+        }
+      });
+    });
+
+    const newRows = [];
+    Object.entries(groupMap).forEach(([E, counts]) => {
+      const line = [E];
+      regionOrder.forEach((key) => {
+        line.push(counts[key]);
+        totals[key] = (totals[key] || 0) + counts[key];
+      });
+      newRows.push(line);
+    });
+
+    const total1 = ["総計1"];
+    const sumOsakaTokyo = (totals["大阪"] || 0) + (totals["東京"] || 0);
+    regionOrder.forEach((key) => {
+      if (key === "大阪" || key === "東京") {
+        total1.push(
+          sumOsakaTokyo
+            ? `${((totals[key] / sumOsakaTokyo) * 100).toFixed(1)}%`
+            : "0%"
+        );
+      } else {
+        total1.push(totals[key] || 0);
+      }
+    });
+
+    const total2 = ["総計2"];
+    regionOrder.forEach((key) => total2.push(totals[key] || 0));
+
+    setStatsRows([...newRows, total1, total2]);
+  };
 
   const handleUpload = async () => {
     if (!file) {
@@ -193,12 +229,13 @@ export default function FCSTMakerPage() {
     }
 
     const formData = new FormData();
-    const excelname = file.name
+    const excelname = file.name;
     formData.append("file", file);
-    // 上传时手动加上表头行
-    const tableHeader = ["マスタ番号", "大阪", "東京", "滋賀", "兵庫1"];
-    formData.append("statsData", JSON.stringify([tableHeader, ...statsRows]));
 
+    // 从 state 获取动态表头
+    const tableHeader = ["マスタ番号", ...regionOrder];
+
+    formData.append("statsData", JSON.stringify([tableHeader, ...statsRows]));
 
     try {
       const res = await fetch("/api/fcatmaker", {
@@ -243,8 +280,11 @@ export default function FCSTMakerPage() {
         }}
       ></div>
 
+      {/* エリア編集控件 */}
+      <AreaEditor mode={mode} />
+
       {/* 朝/夜上传控件 */}
-      <div className="flex items-center space-x-2 mb-4">
+      <div className="flex items-center space-x-2 mt-6 mb-2">
         <span className={`${mode === "朝" ? "text-black" : "text-white"} font-bold w-25`}>マスタ抽出：</span>
         <input type="file" accept=".xlsx,.xls" onChange={handleFile}
           className={mode === "朝" ? "inputfile-item" : "inputfile-item-light"} />
@@ -316,7 +356,14 @@ export default function FCSTMakerPage() {
             <div className="overflow-x-auto">
               <table className="border border-gray-300 border-collapse text-sm w-full table-fixed">
                 <thead className="bg-white">
-                  <tr>{["マスタ番号", "大阪", "東京", "滋賀", "兵庫1"].map((col, idx) => <th key={idx} className="border border-gray-300 text-black p-2">{col}</th>)}</tr>
+                  <tr>
+                    <th className="border border-gray-300 text-black p-2">マスタ番号</th>
+                    {regionOrder.map((region, idx) => (
+                      <th key={idx} className="border border-gray-300 text-black p-2">
+                        {region}
+                      </th>
+                    ))}
+                  </tr>
                 </thead>
                 <tbody>
                   {statsRows.map((row, i) => (
@@ -341,7 +388,7 @@ export default function FCSTMakerPage() {
                                 if (e.key === "Enter") saveEdit(i, j);
                               }}
                               className={`block w-full text-center border rounded px-1 bg-yellow-100 outline-none transition-colors 
-                                ${mode === "朝" ? "focus:bg-red-500" : "focus:bg-blue-900"}`}
+                  ${mode === "朝" ? "focus:bg-red-500" : "focus:bg-blue-900"}`}
                               autoFocus
                             />
                           ) : (
