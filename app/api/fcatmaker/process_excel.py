@@ -33,7 +33,7 @@ thin_border = Border(
     top=Side(style='thin'),
     bottom=Side(style='thin')
 )
-fixed_col_width = 17  # 列宽
+fixed_col_width = 10  # 列宽
 
 def style_cell(cell, val):
     cell.fill = yellow_fill
