@@ -1,5 +1,5 @@
 
-import FallingImages from 'components/fallingImages';
+// import FallingImages from 'components/fallingImages';
 
 export default function Home() {
   return (

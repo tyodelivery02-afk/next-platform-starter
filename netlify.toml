@@ -1,10 +1,12 @@
 [build]
-  command = "pip3 install --target ./python_libs openpyxl && npm run build"
+  command = "npm run build"
+  functions = "netlify/functions"
   publish = ".next"
 
-[build.environment]
-  PYTHON_VERSION = "3.8"
-
 [functions]
+  directory = "netlify/functions"
   node_bundler = "esbuild"
-  included_files = ["app/api/fcatmaker/*.py", "python_libs/**"]
+  included_files = ["netlify/functions/*.py"]
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
