@@ -1,3 +1,10 @@
 [build]
+  command = "pip3 install --target ./python_libs openpyxl && npm run build"
   publish = ".next"
-  command = "npm run build"
+
+[build.environment]
+  PYTHON_VERSION = "3.8"
+
+[functions]
+  node_bundler = "esbuild"
+  included_files = ["app/api/fcatmaker/*.py", "python_libs/**"]
