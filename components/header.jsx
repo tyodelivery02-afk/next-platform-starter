@@ -27,14 +27,14 @@ export function Header() {
 
     return (
         <nav className="flex flex-wrap items-center gap-4 pt-3 pb-0 bg-gray-400">
-            <Image
+            {/* <Image
                 src="/images/witch-flying.svg"
                 alt='main'
                 width={130}
                 height={130}
                 className="fly-animation"
                 style={{ objectFit: "contain" }}
-            />
+            /> */}
             <ul className="flex flex-wrap gap-x-4 gap-y-1">
                 {navItems.map((item, index) => {
                     const isActive = pathname === item.href; // 当前页面
