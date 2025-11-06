@@ -226,6 +226,20 @@ export default function FCSTMakerPage() {
     setStatsRows([...newRows, total1, total2]);
   };
 
+  // 辅助函数：将文件转换为 base64
+  const fileToBase64 = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        // 移除 data URL 前缀 "data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,"
+        const base64 = reader.result.split(',')[1];
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleUpload = async () => {
     if (!file) {
       warningRef.current?.open({ message: "Excelを選んでください" });
@@ -237,26 +251,57 @@ export default function FCSTMakerPage() {
     }
 
     setLoading(true);
-    const formData = new FormData();
     const excelname = file.name;
-    formData.append("file", file);
-
-    // 从 state 获取动态表头
-    const tableHeader = ["マスタ番号", ...regionOrder];
-
-    formData.append("statsData", JSON.stringify([tableHeader, ...statsRows]));
 
     try {
-      const res = await fetch("/api/fcatmaker", {
+      console.log("开始转换文件为 base64...");
+
+      // 将文件转换为 base64
+      const base64File = await fileToBase64(file);
+
+      console.log("✓ 文件已转换，大小:", base64File.length, "字符");
+
+      // 从 state 获取动态表头
+      const tableHeader = ["マスタ番号", ...regionOrder];
+      const statsData = [tableHeader, ...statsRows];
+
+      console.log("✓ 准备调用 Netlify Function...");
+
+      // 直接调用 Netlify Function
+      const res = await fetch("/.netlify/functions/process_excel", {
         method: "POST",
-        body: formData,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          file: base64File,
+          statsData: statsData,
+        }),
       });
+
+      console.log("✓ 函数响应状态:", res.status);
 
       if (!res.ok) {
         const errorText = await res.text();
         console.error("后端返回错误:", errorText);
-        throw new Error(errorText || "处理 Excel 文件失败");
+
+        // 尝试解析 JSON 错误
+        let errorMessage = "处理 Excel 文件失败";
+        try {
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.error || errorData.errorMessage || errorMessage;
+          if (errorData.traceback) {
+            console.error("Python 错误堆栈:", errorData.traceback);
+          }
+        } catch (e) {
+          // 不是 JSON，使用原始文本
+          errorMessage = errorText.substring(0, 200) || errorMessage;
+        }
+
+        throw new Error(errorMessage);
       }
+
+      console.log("✓ 开始下载文件...");
 
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
@@ -267,10 +312,11 @@ export default function FCSTMakerPage() {
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
+
+      console.log("✓ 处理完成！");
     } catch (err) {
       console.error("Excel 上传/处理失败:", err);
       alert("处理 Excel 文件失败:\n" + err.message);
-      setLoading(false);
     } finally {
       setLoading(false);
     }
