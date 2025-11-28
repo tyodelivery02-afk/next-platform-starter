@@ -1,12 +1,15 @@
 [build]
   command = "npm run build"
-  functions = "netlify/functions"
   publish = ".next"
 
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
-  included_files = ["netlify/functions/*.py"]
+  included_files = ["netlify/functions/**"]
+  external_node_modules = []
+
+[functions."process_excel"]
+  runtime = "python3.9"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"

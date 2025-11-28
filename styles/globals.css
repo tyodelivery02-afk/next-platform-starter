@@ -156,17 +156,64 @@
         }
     }
 
+    /* 弹窗组件外框样式 */
     .glass-card {
-        @apply relative w-80 p-6 rounded-2xl bg-white/80 shadow-2xl border border-gray-500 backdrop-blur-md transform transition-all duration-300 scale-100 hover:scale-[1.02];
-
+        @apply bg-white border border-sky-300 rounded-lg text-left shadow-2xl p-6 w-80 max-w-[90%] transition-all duration-300 hover:scale-101 hover:shadow-md hover:shadow-yellow-300
     }
 
+    /* ok按钮样式 */
+    .ok-button {
+        @apply px-4 py-2 rounded-lg bg-sky-500 text-white hover:bg-sky-600 font-semibold transition-all duration-300
+    }
+
+    /* no按钮样式 */
+    .no-button {
+        @apply px-4 py-2 rounded-lg bg-gray-400 text-white hover:bg-gray-500 font-semibold transition-all duration-300
+    }
+
+    /* 画面背景样式 */
+    .bg-style {
+        @apply p-8 min-h-screen text-black bg-gradient-to-b from-sky-200 via-sky-100 to-white
+    }
+
+    /* 表格单元格悬浮时样式 */
+    .table-hover {
+        @apply hover:bg-yellow-200 transition-all duration-300
+    }
+
+    /* 表格div样式 */
+    .table-div {
+        @apply rounded-2xl shadow-lg p-4 bg-sky-50/70 border border-black backdrop-blur-sm hover:shadow-yellow-200 transition-all duration-300
+    }
+
+    /* 表格标题样式 */
+    .table-title {
+        @apply bg-sky-600 text-white border-1
+    }
+
+    /* 表格详细折叠样式 */
+    .table-details {
+        @apply mb-3 border border-sky-200 rounded-xl bg-white/60 hover:shadow-md hover:shadow-yellow-200 transition-all duration-300
+    }
+
+    /* 表格详细内容样式 */
+    .table-details-content {
+        @apply bg-sky-100 px-4 py-2 cursor-pointer rounded-xl hover:bg-yellow-200 text-sky-900 font-semibold transition-all duration-300
+    }
+
+    /* 標簽样式 */
+    .tab-style {
+        @apply px-4 py-2 bg-yellow-100 rounded border hover:scale-[1.05] transition-all duration-300
+    }
+
+    /* 文件读取组件 */
     .inputfile-item {
-        @apply border text-black border-gray-800 px-3 py-1.5 rounded-md text-sm cursor-pointer hover:border-gray-200 hover:text-gray-200 transition
+        @apply border text-black border-yellow-800 px-3 py-1.5 rounded-md text-sm cursor-pointer hover:border-yellow-600 hover:text-yellow-600 transition-all
     }
 
+    /* 文件读取组件亮 */
     .inputfile-item-light {
-        @apply border text-white border-white px-3 py-1.5 rounded-md text-sm cursor-pointer hover:border-gray-200 hover:text-gray-200 transition
+        @apply border text-white border-white px-3 py-1.5 rounded-md text-sm cursor-pointer hover:border-yellow-200 hover:text-yellow-200 transition-all
     }
 
     .line-item {
@@ -177,12 +224,24 @@
         @apply h-1 border-0 bg-gradient-to-r from-gray-800 via-gray-600 to-transparent mt-10
     }
 
-    .table-itam {
-        @apply w-full text-gray-800 bg-white/80 backdrop-blur-md rounded-xl border-0 border-collapse text-base shadow-sm
+    /* 登录按钮样式 */
+    .login-button {
+        @apply px-4 py-2 rounded-lg bg-sky-400 hover:bg-sky-500 text-white font-semibold shadow-md hover:shadow-yellow-400 transition-all duration-300
     }
 
+    /* 保存按钮样式 */
     .save-button {
-        @apply bg-blue-500 hover:bg-blue-600
+        @apply px-4 py-2 rounded-lg bg-sky-400 hover:bg-sky-500 text-white font-semibold shadow-md hover:shadow-yellow-400 transition-all duration-300
+    }
+
+    /* 其他按钮样式 */
+    .orther-button {
+        @apply px-4 py-2 rounded-lg text-white font-semibold shadow-md hover:shadow-yellow-400 bg-yellow-600 hover:bg-yellow-700 transition-all duration-300
+    }
+
+    /* clear按钮样式 */
+    .clear-button {
+        @apply px-4 py-2 rounded-lg bg-gray-400 hover:bg-gray-500 text-white font-semibold shadow-md hover:shadow-yellow-300 transition-all duration-300
     }
 
     /* === 文字阴影 === */
@@ -196,6 +255,10 @@
             0 0 10px #ff69b4,
             0 0 20px #ff1493;
         /* 粉色梦幻光晕 */
+    }
+
+    .rsm-geography:focus {
+        outline: none;
     }
 
 }
@@ -287,4 +350,20 @@
     .react-clock__mark__number {
         color: #3a1a2f;
     }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-5px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-fadeIn {
+    animation: fadeIn 0.3s ease-out forwards;
 }

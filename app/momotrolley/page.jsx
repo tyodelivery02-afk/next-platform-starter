@@ -18,6 +18,7 @@ export default function TrolleyStatusPage() {
     const [latestStatus, setLatestStatus] = useState({});
     const [recentRecords, setRecentRecords] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [loadingMessage, setLoadingMessage] = useState("Loading...");
     const [showExtraColumns, setShowExtraColumns] = useState(true);
 
     // 统一获取所有数据
@@ -143,7 +144,7 @@ export default function TrolleyStatusPage() {
         const updater = updaters[rowIndex];
 
         if (!updater) {
-            alert("更新者を選択してください。");
+            warningRef.current?.open({ message: "更新者を選択してください。" });
             return;
         }
 
@@ -156,7 +157,8 @@ export default function TrolleyStatusPage() {
                     data[rowIndex][colIndex] === "出" ? 2 : 0,
             updater,
         }));
-
+        setLoadingMessage("Executing...");
+        setLoading(true);
         try {
             const res = await fetch("/api/momotrolley/insert", {
                 method: "POST",
@@ -165,7 +167,6 @@ export default function TrolleyStatusPage() {
             });
 
             if (!res.ok) { alertRef.current?.open({ message: "保存失敗！" }); } else {
-
                 alertRef.current?.open({ message: "保存成功！" });
             }
 
@@ -205,6 +206,8 @@ export default function TrolleyStatusPage() {
         } catch (err) {
             console.error(err);
             alertRef.current?.open({ message: "保存失敗！" });
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -240,16 +243,8 @@ export default function TrolleyStatusPage() {
     // 获取排序后的日期列表（从新到旧）
     const sortedDates = Object.keys(groupedRecords).sort((a, b) => new Date(b) - new Date(a));
 
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-gray-400 to-gray-900">
-                <LoadingModal show={loading} message="Loading..." />
-            </div>
-        );
-    }
-
     return (
-        <div className="p-8 bg-gray-50 min-h-screen text-gray-800 bg-gradient-to-b from-gray-400 to-gray-900">
+        <div className="bg-style">
             <div className="flex justify-between items-center mb-6">
                 <h2 className="relative text-x2 font-bold text-black text-shadow">桃カゴ車チェック</h2>
             </div>
@@ -264,14 +259,11 @@ export default function TrolleyStatusPage() {
 
             {/* === 最新状态表 === */}
             <div className="items-center space-x-2 mb-4">
-                {/* <h3 className="text-lg font-semibold mb-2 text-center text-white">
-                    現状
-                </h3> */}
-                <table className="table-itam text-center">
+                <table className="w-full text-gray-800 bg-white backdrop-blur-md rounded-xl border-1 border-collapse text-base shadow-sm text-center">
                     <thead>
                         <tr>
                             {trolleyList.map((id) => (
-                                <th key={id} className="border border-white p-2 bg-gray-600 text-white">
+                                <th key={id} className="table-title text-lg p-1">
                                     <span className="text-white">No.</span>
                                     <span className="text-white">{id}</span>
                                 </th>
@@ -282,9 +274,9 @@ export default function TrolleyStatusPage() {
                         <tr>
                             {trolleyList.map((id) => (
                                 <td key={id} className={`border p-2 font-bold ${latestStatus[id] === 2
-                                    ? 'bg-orange-100 hover:bg-orange-200'
+                                    ? 'bg-yellow-100 hover:bg-yellow-200'
                                     : latestStatus[id] === 1
-                                        ? 'bg-blue-100 hover:bg-blue-200'
+                                        ? 'bg-sky-100 hover:bg-sky-200'
                                         : ''
                                     }`}>
                                     {getStatusText(latestStatus[id])}
@@ -299,9 +291,7 @@ export default function TrolleyStatusPage() {
             <div className="mb-4 flex justify-end">
                 <button
                     onClick={() => setShowExtraColumns(prev => !prev)}
-                    className={`px-4 py-2 rounded-lg font-bold text-white transition ${showExtraColumns
-                        ? "bg-gray-700 hover:bg-gray-600" : "bg-gray-700 hover:bg-gray-600"
-                        }`}
+                    className="orther-button"
                 >
                     {showExtraColumns ? "整列" : "整列しない"}
                 </button>
@@ -309,22 +299,22 @@ export default function TrolleyStatusPage() {
 
             {/* === 登録用表格 === */}
             <div className="mb-8">
-                <table className="table-itam text-center">
+                <table className="w-full text-gray-800 bg-white backdrop-blur-md rounded-xl border-0 border-collapse text-base shadow-sm text-center">
                     <thead>
                         <tr>
                             {showExtraColumns && (
-                                <th className="border p-2 bg-gray-600 text-white">時間帯</th>
+                                <th className="table-title text-lg p-1">時間帯</th>
                             )}
                             {trolleyList.map((id) => (
-                                <th key={id} className="border border-white p-2 bg-gray-600">
+                                <th key={id} className="table-title text-lg p-1">
                                     <span className="text-white">No.</span>
                                     <span className="text-white">{id}</span>
                                 </th>
                             ))}
                             {showExtraColumns && (
                                 <>
-                                    <th className="border p-2 bg-gray-600 text-white">更新者</th>
-                                    <th className="border p-2 bg-gray-600 text-white"></th>
+                                    <th className="table-title text-lg p-1">更新者</th>
+                                    <th className="table-title text-lg p-1"></th>
                                 </>
                             )}
                         </tr>
@@ -333,20 +323,20 @@ export default function TrolleyStatusPage() {
                         {timeSlots.map((slot, rowIndex) => (
                             <tr key={slot}>
                                 {showExtraColumns && (
-                                    <td className="border p-2 font-bold hover:bg-blue-50">{slot}</td>
+                                    <td className="border p-2">{slot}</td>
                                 )}
                                 {trolleyList.map((id, colIndex) => (
-                                    <td key={id} className="border p-2 hover:bg-blue-50">
+                                    <td key={id} className="border p-2 table-hover">
                                         <select
                                             value={data[rowIndex][colIndex]}
                                             onChange={(e) => handleChange(rowIndex, colIndex, e.target.value)}
-                                            className={`border rounded-lg p-1 
+                                            className={`border text-black rounded-lg p-1 
               ${data[rowIndex][colIndex] === "戻"
-                                                    ? "text-blue-500 hover:bg-red-50"
+                                                    ? "bg-sky-100"
                                                     : data[rowIndex][colIndex] === "出"
-                                                        ? "text-red-500 hover:bg-red-50"
+                                                        ? "bg-yellow-300"
                                                         : data[rowIndex][colIndex] === ""
-                                                            ? "hover:bg-red-50"
+                                                            ? "bg-yellow-50"
                                                             : ""}`}
                                         >
                                             {statusOptions.map((opt) => (
@@ -357,11 +347,11 @@ export default function TrolleyStatusPage() {
                                 ))}
                                 {showExtraColumns && (
                                     <>
-                                        <td className="border p-2 hover:bg-blue-50">
+                                        <td className="border p-2 table-hover">
                                             <select
                                                 value={updaters[rowIndex]}
                                                 onChange={(e) => handleUpdaterChange(rowIndex, e.target.value)}
-                                                className="border text-black rounded-lg p-1 hover:bg-red-50"
+                                                className="border text-black rounded-lg p-1 hover:bg-yellow-50"
                                             >
                                                 <option value="">選択</option>
                                                 {personList.map((u) => (
@@ -369,11 +359,12 @@ export default function TrolleyStatusPage() {
                                                 ))}
                                             </select>
                                         </td>
-                                        <td className="border p-2 hover:bg-blue-50">
+                                        <td className="border p-2">
                                             <ConfirmModal
                                                 onConfirm={() => handleSubmitRow(rowIndex)}
                                                 buttonText="保存"
                                                 message="保存しますか"
+                                                buttonColor="save-button"
                                             />
                                         </td>
                                     </>
@@ -382,39 +373,39 @@ export default function TrolleyStatusPage() {
                         ))}
                     </tbody>
                 </table>
-                <span className="text-orange-200">※今日以前のデータを修正したい場合は、スーパー管理員にご連絡ください</span>
+                <span>※今日以前のデータを修正したい場合は、スーパー管理員にご連絡ください</span>
             </div>
 
             {/* === 最近7天记录表 === */}
             <div className="mb-8">
-                <h2 className="text-lg font-semibold mb-2 text-center text-white">
+                <h2 className="text-lg font-semibold mb-2 text-center">
                     最近7日間の記録
                 </h2>
                 <div className="space-y-3">
                     {sortedDates.length === 0 ? (
-                        <div className="text-center text-white p-4">
+                        <div className="text-center p-4">
                             データがありません
                         </div>
                     ) : (
                         sortedDates.map((date) => (
-                            <details key={date} className="bg-white/80 rounded-xl shadow-lg">
-                                <summary className="cursor-pointer p-3 font-semibold text-lg hover:bg-white rounded-xl transition-colors">
+                            <details key={date} className="table-details">
+                                <summary className="table-details-content text-lg">
                                     {formatDate(date)}
                                 </summary>
                                 <div className="p-3">
                                     <div className="overflow-x-auto">
-                                        <table className="table-itam text-center">
+                                        <table className="w-full text-gray-800 bg-white backdrop-blur-md rounded-xl border-0 border-collapse text-base shadow-sm text-center">
                                             <thead>
                                                 <tr>
-                                                    <th className="border p-2 bg-gray-600 text-white">時間帯</th>
-                                                    <th className="border p-2 bg-gray-600 text-white">桃カゴNo</th>
-                                                    <th className="border p-2 bg-gray-600 text-white">状態</th>
-                                                    <th className="border p-2 bg-gray-600 text-white">更新者</th>
+                                                    <th className="p-2 table-title">時間帯</th>
+                                                    <th className="p-2 table-title">桃カゴNo</th>
+                                                    <th className="p-2 table-title">状態</th>
+                                                    <th className="p-2 table-title">更新者</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 {groupedRecords[date].map((record, index) => (
-                                                    <tr key={index} className="hover:bg-gray-300">
+                                                    <tr key={index} className="table-hover">
                                                         <td className="border p-2">
                                                             {getAmPmText(record.am_pm)}
                                                         </td>
@@ -422,9 +413,9 @@ export default function TrolleyStatusPage() {
                                                             {record.trolley_id}
                                                         </td>
                                                         <td className="border p-2">
-                                                            <span className={`px-2 py-1 rounded ${record.status === 1
-                                                                ? 'bg-blue-200 text-blue-800'
-                                                                : 'bg-orange-200 text-orange-800'
+                                                            <span className={`px-2 py-1 text-black rounded ${record.status === 1
+                                                                ? 'bg-sky-200'
+                                                                : 'bg-yellow-400'
                                                                 }`}>
                                                                 {getStatusShortText(record.status)}
                                                             </span>
@@ -445,6 +436,7 @@ export default function TrolleyStatusPage() {
             </div>
             <AlertModal ref={alertRef} />
             <WarningModal ref={warningRef} />
+            <LoadingModal show={loading} message={loadingMessage} />
         </div>
     );
 }

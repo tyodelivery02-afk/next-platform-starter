@@ -13,6 +13,7 @@ export default function TaskCheckSheet() {
   const [history, setHistory] = useState([]);
   const [formattedDate, setFormattedDate] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loadingMessage, setLoadingMessage] = useState("Loading...");
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 30;
@@ -86,7 +87,8 @@ export default function TaskCheckSheet() {
       warningRef.current?.open({ message: "日付が取得できていません" });
       return;
     }
-
+    setLoadingMessage("Executing...");
+    setLoading(true);
     try {
       const res = await fetch("/api/taskCheckSheet/dailytask", {
         method: "POST",
@@ -126,6 +128,8 @@ export default function TaskCheckSheet() {
     } catch (err) {
       console.error(err);
       alertRef.current?.open({ message: "保存失敗！" });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -158,63 +162,66 @@ export default function TaskCheckSheet() {
     return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-gray-400 to-gray-900">
-        <LoadingModal show={loading} message="Loading..." />
-      </div>
-    );
-  }
-
   return (
-    <div className="p-8 bg-gray-50 min-h-screen text-gray-800 bg-gradient-to-b from-gray-400 to-gray-900">
+    <div className="bg-style">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="relative text-x2 font-bold text-black text-shadow">一日のタスク担当者チェックシート</h2>
+        <h2 className="relative text-x2 font-bold text-black text-shadow">
+          一日のタスク担当者チェックシート
+        </h2>
       </div>
+
       <div
         className="w-full h-6 my-6"
         style={{
           backgroundImage: "url(/images/divider.svg)",
           backgroundRepeat: "repeat-x",
           backgroundSize: "auto 35%",
+          opacity: 0.8,
         }}
-      ></div>
+      />
 
       <div className="grid grid-cols-2 gap-6">
         {/* 今日のタスク */}
-        <div className="relative rounded-2xl shadow p-4">
+        <div className="table-div">
           <div className="flex justify-between items-center mb-3">
-            <h2 className="text-xl font-bold text-black">今日のタスク</h2>
-            <div className="relative flex gap-2">
+            <h2 className="text-xl font-bold text-sky-800">今日のタスク</h2>
+            <div className="flex gap-2">
               <ConfirmModal
                 onConfirm={handleClear}
                 buttonText="CLEAR"
                 message="クリアしますか"
-                buttonColor="bg-gray-400 hover:bg-gray-500"
+                buttonColor="clear-button"
               />
               <ConfirmModal
                 onConfirm={handleSave}
                 buttonText="保存"
                 message="保存しますか"
+                buttonColor="save-button"
               />
             </div>
           </div>
-          <table className="table-itam">
+
+          <table className="w-full border-collapse text-black">
             <thead>
-              <tr className="bg-gray-600 text-left text-white rounded-xl">
-                <th className="border border-gray-300 px-3 py-2 w-20">時間帯</th>
-                <th className="border border-gray-300 px-3 py-2 w-64">業務</th>
-                <th className="border border-gray-300 px-3 py-2 w-24">担当者</th>
+              <tr className="table-title rounded-xl text-left">
+                <th className="border border-sky-300 px-3 py-2 w-20">時間帯</th>
+                <th className="border border-sky-300 px-3 py-2 w-64">業務</th>
+                <th className="border border-sky-300 px-3 py-2 w-24">担当者</th>
               </tr>
             </thead>
             <tbody>
               {tasks.map((task, idx) => (
-                <tr key={idx} className="hover:bg-blue-50">
-                  <td className="border px-3 py-2">{task.time}</td>
-                  <td className="border px-3 py-2">{task.job}</td>
-                  <td className="border px-3 py-2">
+                <tr
+                  key={idx}
+                  className="table-hover"
+                >
+                  <td className="border border-white px-3 py-2">{task.time}</td>
+                  <td className="border border-white px-3 py-2">{task.job}</td>
+                  <td className="border border-white px-3 py-2">
                     <select
-                      className={`w-full p-2 border rounded ${task.person === "" ? "bg-yellow-50" : "bg-gray-100"
+                      className={`w-full p-2 border rounded transition-colors duration-300 ${task.person === ""
+                          ? "bg-yellow-50 border-yellow-200"
+                          : "bg-sky-50 border-sky-200"
                         }`}
                       value={task.person}
                       onChange={(e) => handlePersonChange(idx, e.target.value)}
@@ -232,95 +239,62 @@ export default function TaskCheckSheet() {
         </div>
 
         {/* 履歴 */}
-        <div className="rounded-2xl shadow p-4 backdrop-blur-sm">
+        <div className="table-div">
           <h2 className="text-xl font-bold mb-4 text-black">履歴</h2>
           <div className="space-y-3">
             {paginatedHistory.length > 0 ? (
               paginatedHistory.map((record, i) => (
-                <details key={i} className="border rounded-lg rounded-xl">
-                  <summary className="bg-gray-200 px-4 py-2 cursor-pointer rounded-xl border-0 hover:bg-blue-50">
+                <details
+                  key={i}
+                  className="table-details"
+                >
+                  <summary className="table-details-content">
                     {formatDate(record.date)}
                   </summary>
                   <div className="p-3 text-sm">
-                    <table className="table-itam">
+                    <table className="w-full border-collapse">
                       <thead>
-                        <tr className="bg-gray-600 text-left text-white">
-                          <th className="border px-2 py-1 w-20">時間帯</th>
-                          <th className="border px-2 py-1">業務</th>
-                          <th className="border px-2 py-1 w-24">担当者</th>
+                        <tr className="bg-sky-600 text-left text-white">
+                          <th className="border border-sky-300 px-2 py-1 w-20">
+                            時間帯
+                          </th>
+                          <th className="border border-sky-300 px-2 py-1">業務</th>
+                          <th className="border border-sky-300 px-2 py-1 w-24">
+                            担当者
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
-                        {Array.isArray(record.daily_task) &&
-                          record.daily_task.map((task, j) => (
-                            <tr className="hover:bg-blue-50" key={j}>
-                              <td className="border px-2 py-1">{task.time}</td>
-                              <td className="border px-2 py-1">{task.job}</td>
-                              <td className="border px-2 py-1">{task.person}</td>
-                            </tr>
-                          ))}
+                        {record.daily_task?.map((task, j) => (
+                          <tr
+                            key={j}
+                            className="hover:bg-yellow-200 transition-colors"
+                          >
+                            <td className="border border-sky-100 px-2 py-1">
+                              {task.time}
+                            </td>
+                            <td className="border border-sky-100 px-2 py-1">
+                              {task.job}
+                            </td>
+                            <td className="border border-sky-100 px-2 py-1">
+                              {task.person}
+                            </td>
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
                   </div>
                 </details>
               ))
             ) : (
-              <p className="text-sm text-gray-800">記録なし</p>
+              <p className="text-sm text-sky-800">記録なし</p>
             )}
           </div>
-
-          {totalPages > 1 && (
-            <div className="flex justify-center items-center gap-2 mt-4">
-              <button
-                onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-                disabled={currentPage === 1}
-                className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50 hover:bg-blue-50"
-              >
-                前のページ
-              </button>
-
-              <div className="flex items-center gap-1 text-white">
-                <input
-                  type="number"
-                  min="1"
-                  max={totalPages}
-                  value={currentPageInput}
-                  onChange={(e) => setCurrentPageInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      let val = Number(currentPageInput);
-                      if (isNaN(val) || val < 1) val = 1;
-                      if (val > totalPages) val = totalPages;
-                      setCurrentPage(val);
-                      setCurrentPageInput(String(val));
-                      e.target.blur();
-                    }
-                  }}
-                  onBlur={() => {
-                    let val = Number(currentPageInput);
-                    if (isNaN(val) || val < 1) val = 1;
-                    if (val > totalPages) val = totalPages;
-                    setCurrentPage(val);
-                    setCurrentPageInput(String(val));
-                  }}
-                  className="w-14 text-center text-white rounded px-1 py-0.5 outline-none border border-gray-300"
-                />
-                <span>/ {totalPages}</span>
-              </div>
-
-              <button
-                onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
-                disabled={currentPage === totalPages}
-                className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50 hover:bg-blue-50"
-              >
-                次のページ
-              </button>
-            </div>
-          )}
         </div>
       </div>
       <AlertModal ref={alertRef} />
       <WarningModal ref={warningRef} />
+      <LoadingModal show={loading} message={loadingMessage} />
     </div>
   );
 }

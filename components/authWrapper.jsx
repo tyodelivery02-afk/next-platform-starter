@@ -41,7 +41,7 @@ export default function AuthWrapper({ children }) {
       <div className="flex flex-col w-full mx-auto grow">
         <Header />
         <main className="grow">{children}</main>
-        <Footer />
+        {/* <Footer /> */}
       </div>
     </div>
   );

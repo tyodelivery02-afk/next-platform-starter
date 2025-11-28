@@ -38,7 +38,7 @@ const WarningModal = forwardRef(function WarningModal(_, ref) {
                 <div className="flex justify-end">
                     <button
                         onClick={handleClose}
-                        className="px-4 py-2 rounded-lg bg-green-500 text-white hover:bg-green-600 shadow-md transition"
+                        className="ok-button"
                     >
                         OK
                     </button>

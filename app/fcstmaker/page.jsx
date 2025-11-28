@@ -8,6 +8,7 @@ import { validSources } from 'app/config/config';
 import WarningModal from "components/warning";
 import AreaEditor from "components/areaSearch";
 import LoadingModal from "components/loading";
+import Link from 'next/link';
 
 export default function FCSTMakerPage() {
   const [rows, setRows] = useState([]); // 朝/夜筛选后的结果
@@ -74,10 +75,10 @@ export default function FCSTMakerPage() {
 
       if (selectedMode === "朝") {
         if (dateM.isBefore(today, "day")) result.push({ G, M, N });
-        else if (dateM.isSame(today, "day") && N && N <= "16:00:00") result.push({ G, M, N });
+        else if (dateM.isSame(today, "day") && N && N <= "15:00:00") result.push({ G, M, N });
       } else if (selectedMode === "夜") {
         if (dateM.isBefore(today, "day") || dateM.isSame(today, "day")) result.push({ G, M, N });
-        else if (dateM.isSame(tomorrow, "day") && N && N <= "16:00:00") result.push({ G, M, N });
+        else if (dateM.isSame(tomorrow, "day") && N && N <= "15:00:00") result.push({ G, M, N });
       }
     });
 
@@ -145,9 +146,9 @@ export default function FCSTMakerPage() {
           order.push(a.region_name);
         });
 
-        const osaka = order.find(r => r === "大阪");
-        const tokyo = order.find(r => r === "東京");
-        const others = order.filter(r => r !== "大阪" && r !== "東京");
+        const osaka = order.find(r => r === "関西");
+        const tokyo = order.find(r => r === "関東");
+        const others = order.filter(r => r !== "関西" && r !== "関東");
 
         const sortedOrder = [
           ...(osaka ? [osaka] : []),
@@ -180,8 +181,8 @@ export default function FCSTMakerPage() {
 
       const E = row[4];
       const D = row[3];
-      const L = row[11];
-      if (!E || !L) return;
+      const M = row[12];
+      if (!E || !M) return;
       if (!String(D).startsWith("E")) return;
 
       if (!groupMap[E]) {
@@ -190,7 +191,7 @@ export default function FCSTMakerPage() {
       }
 
       Object.entries(mapping).forEach(([key, keywords]) => {
-        if (keywords.some((kw) => String(L).startsWith(kw))) {
+        if (keywords.some((kw) => String(M).startsWith(kw))) {
           groupMap[E][key] += 1;
         }
       });
@@ -207,9 +208,9 @@ export default function FCSTMakerPage() {
     });
 
     const total1 = ["総計1"];
-    const sumOsakaTokyo = (totals["大阪"] || 0) + (totals["東京"] || 0);
+    const sumOsakaTokyo = (totals["関西"] || 0) + (totals["関東"] || 0);
     regionOrder.forEach((key) => {
-      if (key === "大阪" || key === "東京") {
+      if (key === "関西" || key === "関東") {
         total1.push(
           sumOsakaTokyo
             ? `${((totals[key] / sumOsakaTokyo) * 100).toFixed(1)}%`
@@ -231,7 +232,6 @@ export default function FCSTMakerPage() {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => {
-        // 移除 data URL 前缀 "data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,"
         const base64 = reader.result.split(',')[1];
         resolve(base64);
       };
@@ -254,68 +254,36 @@ export default function FCSTMakerPage() {
     const excelname = file.name;
 
     try {
-      console.log("开始转换文件为 base64...");
+      // 组装 FormData
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("statsData", JSON.stringify([["マスタ番号", ...regionOrder], ...statsRows]));
 
-      // 将文件转换为 base64
-      const base64File = await fileToBase64(file);
+      console.log("✓ 准备调用后端 Python 处理脚本...");
 
-      console.log("✓ 文件已转换，大小:", base64File.length, "字符");
-
-      // 从 state 获取动态表头
-      const tableHeader = ["マスタ番号", ...regionOrder];
-      const statsData = [tableHeader, ...statsRows];
-
-      console.log("✓ 准备调用 Netlify Function...");
-
-      // 直接调用 Netlify Function
-      const res = await fetch("/.netlify/functions/process_excel", {
+      const res = await fetch("/api/fcatmaker", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          file: base64File,
-          statsData: statsData,
-        }),
+        body: formData,
       });
 
-      console.log("✓ 函数响应状态:", res.status);
+      console.log("✓ 响应状态:", res.status);
 
       if (!res.ok) {
         const errorText = await res.text();
-        console.error("后端返回错误:", errorText);
-
-        // 尝试解析 JSON 错误
-        let errorMessage = "处理 Excel 文件失败";
-        try {
-          const errorData = JSON.parse(errorText);
-          errorMessage = errorData.error || errorData.errorMessage || errorMessage;
-          if (errorData.traceback) {
-            console.error("Python 错误堆栈:", errorData.traceback);
-          }
-        } catch (e) {
-          // 不是 JSON，使用原始文本
-          errorMessage = errorText.substring(0, 200) || errorMessage;
-        }
-
-        throw new Error(errorMessage);
+        throw new Error(errorText);
       }
 
-      console.log("✓ 开始下载文件...");
-
       const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
+      const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
       a.download = excelname;
-      document.body.appendChild(a);
       a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
+      URL.revokeObjectURL(url);
 
-      console.log("✓ 处理完成！");
+      console.log("✓ 下载完成！");
     } catch (err) {
-      console.error("Excel 上传/处理失败:", err);
+      console.error("处理失败:", err);
       alert("处理 Excel 文件失败:\n" + err.message);
     } finally {
       setLoading(false);
@@ -323,9 +291,9 @@ export default function FCSTMakerPage() {
   };
 
   return (
-    <div className={`p-5 font-['Microsoft_YaHei'] min-h-screen ${mode === "朝"
-      ? "bg-gradient-to-b from-gray-400 to-yellow-900"
-      : "bg-gradient-to-b from-gray-400 to-gray-900"
+    <div className={`p-8 min-h-screen text-black ${mode === "朝"
+      ? "bg-gradient-to-b from-sky-200 via-sky-100 to-white"
+      : "bg-gradient-to-b from-sky-400 to-sky-800"
       }`}
     >
       <h2 className="relative text-x2 font-bold text-black text-shadow">スーパーフォーキャストメーカー</h2>
@@ -338,12 +306,52 @@ export default function FCSTMakerPage() {
         }}
       ></div>
 
-      {/* エリア編集控件 */}
-      <AreaEditor mode={mode} />
+      <div className="flex items-center justify-start gap-17">
+        {/* エリア編集控件 */}
+
+        <div className="flex items-center gap-2">
+          <span className={`font-bold ${mode === "朝" ? "text-black" : "text-white"}`}>
+            エリア設定：
+          </span>
+          <AreaEditor mode={mode} />
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* 左侧文字 */}
+          <span
+            className={`font-bold ${mode === "朝" ? "text-black" : "text-white"
+              }`}
+          >
+            その他ツール：
+          </span>
+
+          {/* 右侧可点击图标 */}
+          <Link
+            href="https://mega.nz/folder/CQFTVK7J#NfZWDyg27yGLhJB4rAUdzg"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:opacity-70 transition-transform duration-200"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="28"
+              height="28"
+              className="w-10 h-10 mb-4"
+              fill={mode === "朝" ? "#000000" : "#ffffff"}
+              viewBox="0 0 256 256"
+            >
+              <path d="M224,64H176V56a24,24,0,0,0-24-24H104A24,24,0,0,0,80,56v8H32A16,16,0,0,0,16,80V192a16,16,0,0,0,16,16H224a16,16,0,0,0,16-16V80A16,16,0,0,0,224,64ZM96,56a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96ZM224,80v32H192v-8a8,8,0,0,0-16,0v8H80v-8a8,8,0,0,0-16,0v8H32V80Zm0,112H32V128H64v8a8,8,0,0,0,16,0v-8h96v8a8,8,0,0,0,16,0v-8h32v64Z"></path>
+            </svg>
+          </Link>
+        </div>
+
+      </div>
+
+      <hr className="line-item" />
 
       {/* 朝/夜上传控件 */}
       <div className="flex items-center space-x-2 mt-6 mb-2">
-        <span className={`${mode === "朝" ? "text-black" : "text-white"} font-bold w-25`}>マスタ抽出：</span>
+        <span className={`${mode === "朝" ? "text-gray-800" : "text-white"} font-bold w-25`}>マスタ抽出：</span>
         <input type="file" accept=".xlsx,.xls" onChange={handleFile}
           className={mode === "朝" ? "inputfile-item" : "inputfile-item-light"} />
       </div>
@@ -352,11 +360,11 @@ export default function FCSTMakerPage() {
       <div className="flex items-center space-x-6 text-white mb-4">
         <label className="flex items-center space-x-2 cursor-pointer">
           <input type="radio" name="mode" value="朝" checked={mode === "朝"} onChange={handleModeChange} className="accent-yellow-400" />
-          <Sun size={32} className={`${mode === "朝" ? "text-yellow-400" : "text-gray-300"}`} />
+          <Sun size={32} className={`${mode === "朝" ? "text-yellow-400" : "text-gray-500"}`} />
         </label>
         <label className="flex items-center space-x-2 cursor-pointer">
           <input type="radio" name="mode" value="夜" checked={mode === "夜"} onChange={handleModeChange} className="accent-black" />
-          <MoonStars size={32} className={`${mode === "夜" ? "text-black" : "text-gray-300"}`} />
+          <MoonStars size={32} className={`${mode === "夜" ? "text-white" : "text-gray-400"}`} />
         </label>
       </div>
 
@@ -364,7 +372,7 @@ export default function FCSTMakerPage() {
       {rows.length > 0 && (
         <div className="mt-5">
           <button onClick={() => setIsOpen(!isOpen)}
-            className={`mb-2 px-3 py-1 text-white rounded-md transition ${mode === "朝" ? "bg-yellow-600 hover:bg-yellow-700" : "bg-gray-700 hover:bg-gray-800"}`}>
+            className={`orther-button mb-2 px-3 py-1 ${mode === "朝" ? "bg-yellow-600 hover:bg-yellow-700" : "bg-sky-700 hover:bg-sky-800"}`}>
             {isOpen ? "閉じる ▲" : "開く ▼"}
           </button>
           <div className={`overflow-hidden transition-all duration-300 ${isOpen ? "max-h-[2000px]" : "max-h-0"}`}>
@@ -373,7 +381,7 @@ export default function FCSTMakerPage() {
                 <thead className="bg-white"><tr><th className="border border-gray-300 text-black p-2">マスタ番号</th></tr></thead>
                 <tbody>
                   {rows.map((r, i) => (
-                    <tr key={i} className={`text-center transition-colors cursor-pointer ${mode === "朝" ? "hover:bg-yellow-600" : "hover:bg-black"}`}>
+                    <tr key={i} className="text-center transition-all cursor-pointer hover:bg-yellow-400">
                       <td className="border border-gray-300 p-2">{r.G}</td>
                     </tr>
                   ))}
@@ -383,7 +391,7 @@ export default function FCSTMakerPage() {
                 <thead className="bg-white"><tr><th className="border border-gray-300 text-black p-2">到着予定日</th><th className="border border-gray-300 text-black p-2">到着予定時間</th></tr></thead>
                 <tbody>
                   {rows.map((r, i) => (
-                    <tr key={i} className={`text-center transition-colors cursor-pointer ${mode === "朝" ? "hover:bg-yellow-600" : "hover:bg-black"}`}>
+                    <tr key={i} className="text-center transition-all cursor-pointer hover:bg-yellow-400">
                       <td className="border border-gray-300 p-2">{r.M}</td>
                       <td className="border border-gray-300 p-2">{r.N}</td>
                     </tr>
@@ -398,7 +406,7 @@ export default function FCSTMakerPage() {
 
       {/* 地区统计读取文件 */}
       <div className="flex items-center space-x-2 mt-6 mb-2">
-        <span className={`${mode === "朝" ? "text-black" : "text-white"} font-bold w-25`}>集計：</span>
+        <span className={`${mode === "朝" ? "text-gray-800" : "text-white"} font-bold w-25`}>集計：</span>
         <input type="file" accept=".xlsx,.xls" onChange={handleStatsFile}
           className={mode === "朝" ? "inputfile-item" : "inputfile-item-light"} />
       </div>
@@ -407,7 +415,7 @@ export default function FCSTMakerPage() {
       {statsRows.length > 0 && (
         <div className="mt-2">
           <button onClick={() => setIsStatsOpen(!isStatsOpen)}
-            className={`mb-2 px-3 py-1 text-white rounded-md transition ${mode === "朝" ? "bg-yellow-600 hover:bg-yellow-700" : "bg-gray-700 hover:bg-gray-800"}`}>
+            className={`orther-button mb-2 px-3 py-1 ${mode === "朝" ? "bg-yellow-600 hover:bg-yellow-700" : "bg-gray-700 hover:bg-gray-800"}`}>
             {isStatsOpen ? "閉じる ▲" : "開く ▼"}
           </button>
           <div className={`overflow-hidden transition-all duration-300 ${isStatsOpen ? "max-h-[2000px]" : "max-h-0"}`}>
@@ -427,8 +435,7 @@ export default function FCSTMakerPage() {
                   {statsRows.map((row, i) => (
                     <tr
                       key={i}
-                      className={`text-center transition-colors cursor-pointer ${mode === "朝" ? "hover:bg-yellow-600" : "hover:bg-black"
-                        }`}
+                      className="text-center transition-all cursor-pointer hover:bg-yellow-400"
                     >
                       {row.map((cell, j) => (
                         <td
@@ -445,8 +452,7 @@ export default function FCSTMakerPage() {
                               onKeyDown={(e) => {
                                 if (e.key === "Enter") saveEdit(i, j);
                               }}
-                              className={`block w-full text-center border rounded px-1 bg-yellow-100 outline-none transition-colors 
-                  ${mode === "朝" ? "focus:bg-red-500" : "focus:bg-blue-900"}`}
+                              className="block w-full text-center border rounded px-1 bg-yellow-100 outline-none transition-all focus:bg-pink-200"
                               autoFocus
                             />
                           ) : (
@@ -476,9 +482,9 @@ export default function FCSTMakerPage() {
         <div className="flex gap-2">
           <ConfirmModal
             onConfirm={handleUpload}
-            buttonText="FCST作成"
+            buttonText="作成"
             message="FCST作成しますか"
-            buttonColor={`${mode === "朝" ? "bg-yellow-600 hover:bg-yellow-700" : "bg-gray-700 hover:bg-gray-800"}`}
+            buttonColor={`orther-button ${mode === "朝" ? "bg-yellow-500 hover:bg-yellow-400" : "bg-sky-500 hover:bg-sky-400"}`}
           />
         </div>
       </div>

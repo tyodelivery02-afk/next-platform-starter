@@ -25,21 +25,21 @@ const AlertModal = forwardRef(function AlertModal(_, ref) {
             onClick={handleClose}
         >
             <div
-                className="glass-card text-left"
+                className="glass-card"
                 onClick={(e) => e.stopPropagation()}
             >
-                <h3 className="text-lg font-semibold mb-4 text-gray-800">{title}</h3>
-                <p className="mb-6 text-gray-700 leading-relaxed inline-flex items-center gap-2">
+                <h3 className="text-lg font-semibold mb-4 text-black">{title}</h3>
+                <p className="mb-6 text-black leading-relaxed inline-flex items-center gap-2">
                     {message}
                     <span className="flex justify-center items-center">
-                        {message === "保存成功！" && <Smiley size={32} className="text-green-500" />}
-                        {message === "保存失敗！" && <SmileySad size={32} className="text-red-500" />}
+                        {message === "保存成功！" && <Smiley size={32} className="text-sky-500" />}
+                        {message === "保存失敗！" && <SmileySad size={32} className="text-yellow-500" />}
                     </span>
                 </p>
                 <div className="flex justify-end">
                     <button
                         onClick={handleClose}
-                        className="px-4 py-2 rounded-lg bg-green-500 text-white hover:bg-green-600 shadow-md transition"
+                        className="ok-button"
                     >
                         OK
                     </button>
