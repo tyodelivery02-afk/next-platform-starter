@@ -9,7 +9,7 @@
   external_node_modules = []
 
 [functions."process_excel"]
-  runtime = "python3.9"
+  runtime = "python-3.10.12"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
