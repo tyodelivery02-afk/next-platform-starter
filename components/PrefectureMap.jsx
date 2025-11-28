@@ -95,7 +95,7 @@ export default function PrefectureMap({
                   if (loadedPrefCodeRef.current === prefCode) {
                     setIsDataLoaded(true);
                     if (onLoad) {
-                      console.log("📊 県地図データ読み込み完了:", prefCode);
+                      console.log("県地図データ読み込み完了:", prefCode);
                       onLoad(geoJSON);
                     }
                   }
