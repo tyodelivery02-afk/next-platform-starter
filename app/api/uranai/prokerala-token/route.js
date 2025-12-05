@@ -1,24 +1,41 @@
-// pages/api/uranai/prokerala-token.js
-export default async function handler(req, res) {
-  // 允许所有HTTP方法
-  if (req.method !== 'GET' && req.method !== 'POST') {
-    return res.status(200).json({ message: 'Method allowed' });
-  }
+// app/api/uranai/prokerala-token/route.js
+import { NextResponse } from 'next/server';
 
+export async function GET(request) {
+  return handleRequest(request);
+}
+
+export async function POST(request) {
+  return handleRequest(request);
+}
+
+export async function OPTIONS(request) {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    },
+  });
+}
+
+async function handleRequest(request) {
   try {
-    const clientId = process.env.NEXT_PUBLIC_PROKERALA_CLIENT_ID;
+    const clientId = process.env.PROKERALA_CLIENT_ID;
     const clientSecret = process.env.PROKERALA_CLIENT_SECRET;
     
     console.log('Token API called');
-    console.log('Client ID exists:', !!clientId);
-    console.log('Client Secret exists:', !!clientSecret);
     
     if (!clientId || !clientSecret) {
-      return res.status(500).json({ 
-        error: 'Prokeralaクライアント情報未設定',
-        hasClientId: !!clientId,
-        hasClientSecret: !!clientSecret
-      });
+      return NextResponse.json(
+        { 
+          error: 'クライアント情報未設定',
+          hasClientId: !!clientId,
+          hasClientSecret: !!clientSecret
+        },
+        { status: 500 }
+      );
     }
 
     // Token缓存
@@ -27,18 +44,17 @@ export default async function handler(req, res) {
     }
     const cache = global.__prokerala_token_cache;
 
-    // 检查token是否还有效（提前30秒过期）
+    // 检查缓存(提前30秒过期)
     if (cache.access_token && cache.expires_at && Date.now() < cache.expires_at - 30000) {
       console.log('Returning cached token');
-      return res.status(200).json({ 
+      return NextResponse.json({ 
         access_token: cache.access_token,
         cached: true 
       });
     }
 
-    console.log('Fetching new token from Prokerala...');
+    console.log('Fetching new token...');
 
-    // 获取新token
     const params = new URLSearchParams();
     params.append('grant_type', 'client_credentials');
     params.append('client_id', clientId);
@@ -53,42 +69,31 @@ export default async function handler(req, res) {
     });
 
     const text = await tokenRes.text();
-    console.log('Prokerala response status:', tokenRes.status);
     
     if (!tokenRes.ok) {
-      console.error('Token Error:', text);
-      return res.status(500).json({ 
-        error: 'Token取得失敗', 
-        status: tokenRes.status,
-        detail: text 
-      });
+      console.error('Token fetch error:', text);
+      return NextResponse.json(
+        { error: 'Token取得失敗', detail: text },
+        { status: 500 }
+      );
     }
 
-    let json;
-    try { 
-      json = JSON.parse(text); 
-    } catch (e) { 
-      console.error('JSON parse error:', e);
-      return res.status(500).json({ 
-        error: 'Token JSON解析失敗', 
-        raw: text 
-      }); 
-    }
+    const json = JSON.parse(text);
 
     if (!json.access_token) {
-      return res.status(500).json({ 
-        error: 'アクセストークンなし',
-        response: json
-      });
+      return NextResponse.json(
+        { error: 'アクセストークンなし', response: json },
+        { status: 500 }
+      );
     }
 
-    // 保存到缓存
+    // 保存缓存
     cache.access_token = json.access_token;
     cache.expires_at = Date.now() + (json.expires_in || 3600) * 1000;
 
     console.log('Token obtained successfully');
 
-    return res.status(200).json({ 
+    return NextResponse.json({ 
       access_token: json.access_token,
       expires_in: json.expires_in,
       cached: false
@@ -96,10 +101,9 @@ export default async function handler(req, res) {
 
   } catch (err) {
     console.error('Token API Error:', err);
-    return res.status(500).json({ 
-      error: '内部サーバーエラー', 
-      message: err.message,
-      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
-    });
+    return NextResponse.json(
+      { error: '内部エラー', message: err.message },
+      { status: 500 }
+    );
   }
 }

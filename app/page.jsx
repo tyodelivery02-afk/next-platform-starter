@@ -151,7 +151,7 @@ export default function Home() {
         <div className="mb-6 flex justify-end">
           <button
             onClick={addAnnouncement}
-            className="text-yellow-600 hover:text-yellow-800 rounded p-1 transition-all"
+            className="plus-button"
             title="追加"
           >
             <Plus size={24} weight="bold" />

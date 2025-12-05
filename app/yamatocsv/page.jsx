@@ -99,7 +99,7 @@ export default function CSVProcessor() {
     };
 
     const csvToString = (data) => {
-        return data
+        const csvString = data
             .map((row) =>
                 row
                     .map((cell) => {
@@ -112,6 +112,8 @@ export default function CSVProcessor() {
                     .join(',')
             )
             .join('\n');
+
+        return csvString + '\n';
     };
 
     // CSV 处理
@@ -150,19 +152,35 @@ export default function CSVProcessor() {
         return processed;
     };
 
-    const processKakuteiData = (data) => {
+    const processKakuteiData = (data, city) => {
         if (data.length < 2) throw new Error('データが不足しています');
         const processed = [];
 
-        // 第1行：保持標題行
+        // 第1行：保持標題行 (索引 0)
         processed.push([...data[0]]);
 
-        // 第2行：插入空白行
-        processed.push(new Array(data[0].length).fill(''));
+        // 第2行：插入空白行 (索引 1)
+        // 保持空数组 []，使其在 CSV 中为纯空行（没有逗号）
+        processed.push([]);
 
         // 第3行起：添加原數據（從原數據的第2行開始）
         for (let i = 1; i < data.length; i++) {
             processed.push([...data[i]]);
+        }
+
+        // 将所有数据行（索引 2 及以后）的 B 列数据替换为空字符串
+        const code = city === 'osaka' ? '072463680100' : '072463680198';
+
+        // 从索引 2 (第 3 行，即第一个数据行) 开始循环
+        for (let i = 2; i < processed.length; i++) {
+            // 确保行有足够的长度来设置 B 列（索引 1）
+            while (processed[i].length < 2) processed[i].push('');
+
+            // 1. 将 B 列（索引 1）替换为空
+            processed[i][1] = '';
+
+            // 2. 设置运费请求代码 (A 列，索引 0)
+            processed[i][0] = code;
         }
 
         return processed;
@@ -181,7 +199,7 @@ export default function CSVProcessor() {
 
             let processed;
             if (type === 'yotei') processed = processYoteiData(parsed, city);
-            else processed = processKakuteiData(parsed);
+            else processed = processKakuteiData(parsed, city);
 
             const csvString = csvToString(processed);
             const bom = '\uFEFF';
@@ -204,7 +222,7 @@ export default function CSVProcessor() {
     };
 
     // CSV 预览
-    const csvPreview = csvData ? parseCSV(csvData).slice(0, 50) : [];
+    const csvPreview = csvData ? parseCSV(csvData).slice(0, 99) : [];
     const totalRows = csvData ? parseCSV(csvData).length : 0;
 
     return (
@@ -295,18 +313,22 @@ export default function CSVProcessor() {
                     <div className="table-div p-6 flex flex-wrap gap-6 justify-start">
                         {type === 'yotei' ? (
                             <>
-                                <div className="tab-style">A1セルの「??」を削除</div>
-                                <div className="tab-style">A列とB列（2行目以降）の値が一致するか検証</div>
+                                <div className="tab-style">A1セル：「??」を削除</div>
+                                <div className="tab-style">A列とB列：値が一致するか検証</div>
                                 <div className="tab-style">
-                                    R列（2行目以降）に運賃請求先コード（{city === 'osaka' ? '072463680100' : '072463680198'}）を設定
+                                    R列：運賃請求先コード（{city === 'osaka' ? '072463680100' : '072463680198'}）を設定
                                 </div>
-                                <div className="tab-style">M列（2行目以降）の荷送人名を10文字以内に制限</div>
+                                <div className="tab-style">M列：荷送人名を10文字以内に制限</div>
                             </>
                         ) : (
                             <>
                                 <div className="tab-style">1行目：ヘッダー行をそのまま保持</div>
                                 <div className="tab-style">2行目：空白行を挿入</div>
                                 <div className="tab-style">3行目以降：元データをそのまま追加</div>
+                                <div className="tab-style">
+                                    A列：運賃請求先コード（{city === 'osaka' ? '072463680100' : '072463680198'}）を設定
+                                </div>
+                                <div className="tab-style">B列：空白値に置換</div>
                             </>
                         )}
                     </div>

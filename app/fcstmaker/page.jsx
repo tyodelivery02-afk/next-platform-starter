@@ -179,11 +179,15 @@ export default function FCSTMakerPage() {
       if (idx === 0) return;
       if (!row || !Array.isArray(row)) return;
 
-      const E = row[4];
+      const C = row[2];
       const D = row[3];
+      const E = row[4];
       const M = row[12];
       if (!E || !M) return;
       if (!String(D).startsWith("E")) return;
+      if (!["待通关", "通关中", "通关异常", "通关许可"].includes(String(C))) {
+        return;
+      }
 
       if (!groupMap[E]) {
         groupMap[E] = {};
@@ -311,7 +315,7 @@ export default function FCSTMakerPage() {
 
         <div className="flex items-center gap-2">
           <span className={`font-bold ${mode === "朝" ? "text-black" : "text-white"}`}>
-            エリア設定：
+            エリア集計編集：
           </span>
           <AreaEditor mode={mode} />
         </div>

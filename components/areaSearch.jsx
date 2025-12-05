@@ -112,7 +112,7 @@ export default function AreaEditor({ mode = "朝" }) {
           <div className="bg-sky-400 rounded-2xl shadow-2xl border border-sky-400 w-full max-w-5xl max-h-[85vh] overflow-hidden flex flex-col transition-all">
             {/* Header */}
             <div className="flex items-center justify-between p-6 border-b border-sky-400 bg-sky-700">
-              <h2 className="text-2xl font-bold text-white">エリア編集</h2>
+              <h2 className="text-2xl font-bold text-white">エリア集計編集</h2>
               <button
                 onClick={() => setShow(false)}
                 className="text-white hover:text-yellow-400 rounded-lg p-2 transition-all duration-200"
@@ -214,7 +214,7 @@ export default function AreaEditor({ mode = "朝" }) {
         </div>
       )}
       <AlertModal ref={alertRef} />
-      <LoadingModal show={loading} message="Saving..." />
+      <LoadingModal show={loading} message="Executing..." />
     </div>
   );
 }

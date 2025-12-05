@@ -379,8 +379,8 @@ export default function Page() {
       }
     }
 
-    const width = 1600;
-    const height = 1200;
+    const width = 2600;
+    const height = 2200;
     const canvas = document.createElement("canvas");
     canvas.width = width;
     canvas.height = height + 100;

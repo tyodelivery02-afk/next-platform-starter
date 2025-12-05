@@ -1,56 +1,63 @@
-// pages/api/uranai/panchang.js
-// 获取每日Panchang（吉凶时辰）
-export default async function handler(req, res) {
-  // 设置CORS头部（如果需要）
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
+// app/api/uranai/panchang/route.js
+import { NextResponse } from 'next/server';
 
+export async function GET(request) {
+  return handleRequest(request);
+}
+
+export async function POST(request) {
+  return handleRequest(request);
+}
+
+export async function OPTIONS(request) {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    },
+  });
+}
+
+async function handleRequest(request) {
   try {
-    const { 
-      date = '',  // YYYY-MM-DD格式
-      latitude = '35.6762',  // 东京默认坐标
-      longitude = '139.6503',
-      timezone = 'Asia/Tokyo'
-    } = req.query;
+    const { searchParams } = new URL(request.url);
+    const date = searchParams.get('date') || '';
+    const latitude = searchParams.get('latitude') || '35.6762';
+    const longitude = searchParams.get('longitude') || '139.6503';
+    const timezone = searchParams.get('timezone') || 'Asia/Tokyo';
 
-    console.log('Panchang API called with date:', date);
+    console.log('Panchang API called:', { date, latitude, longitude, timezone });
 
     // 获取token
-    const protocol = req.headers['x-forwarded-proto'] || 'http';
-    const host = req.headers.host;
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || `${protocol}://${host}`;
+    const protocol = request.headers.get('x-forwarded-proto') || 'http';
+    const host = request.headers.get('host');
+    const baseUrl = process.env.BASE_URL || `${protocol}://${host}`;
     
-    console.log('Fetching token from:', `${baseUrl}/api/uranai/prokerala-token`);
-
     const tokenRes = await fetch(`${baseUrl}/api/uranai/prokerala-token`);
     
     if (!tokenRes.ok) {
       const errorText = await tokenRes.text();
       console.error('Token fetch failed:', errorText);
-      return res.status(500).json({ 
-        error: 'Token取得失敗', 
-        detail: errorText 
-      });
+      return NextResponse.json(
+        { error: 'Token取得失敗', detail: errorText },
+        { status: 500 }
+      );
     }
 
     const tokenData = await tokenRes.json();
     
     if (!tokenData.access_token) {
-      return res.status(500).json({ error: 'アクセストークンなし' });
+      return NextResponse.json(
+        { error: 'アクセストークンなし' },
+        { status: 500 }
+      );
     }
 
-    console.log('Token obtained, calling Prokerala API...');
+    console.log('Token obtained');
 
-    // 构建Panchang API请求
-    const url = new URL('https://api.prokerala.com/v2/astrology/panchang');
-    url.searchParams.set('ayanamsa', '1'); // Lahiri ayanamsa
-    url.searchParams.set('coordinates', `${latitude},${longitude}`);
-    
-    // 构建datetime参数 (ISO 8601格式)
+    // 构建日期时间
     let datetime;
     if (date) {
       datetime = `${date}T00:00:00`;
@@ -62,7 +69,7 @@ export default async function handler(req, res) {
       datetime = `${year}-${month}-${day}T00:00:00`;
     }
     
-    // 添加时区偏移
+    // 添加时区
     if (timezone === 'Asia/Tokyo') {
       datetime += '+09:00';
     } else if (timezone === 'Asia/Shanghai') {
@@ -71,14 +78,19 @@ export default async function handler(req, res) {
       datetime += '+00:00';
     }
     
+    // 调用API
+    const url = new URL('https://api.prokerala.com/v2/astrology/panchang');
+    url.searchParams.set('ayanamsa', '1');
+    url.searchParams.set('coordinates', `${latitude},${longitude}`);
     url.searchParams.set('datetime', datetime);
-    url.searchParams.set('la', 'ja'); // 日语
+    url.searchParams.set('la', 'ja');
 
     console.log('Calling Prokerala:', url.toString());
 
     const apiRes = await fetch(url.toString(), { 
       headers: { 
-        'Authorization': `Bearer ${tokenData.access_token}` 
+        'Authorization': `Bearer ${tokenData.access_token}`,
+        'Accept': 'application/json'
       } 
     });
 
@@ -86,33 +98,22 @@ export default async function handler(req, res) {
     
     if (!apiRes.ok) {
       console.error('Panchang API Error:', text);
-      return res.status(apiRes.status).json({ 
-        error: 'Panchang APIエラー', 
-        detail: text,
-        url: url.toString()
-      });
+      return NextResponse.json(
+        { error: 'Panchang APIエラー', detail: text, url: url.toString() },
+        { status: apiRes.status }
+      );
     }
 
-    let data;
-    try { 
-      data = JSON.parse(text); 
-    } catch (e) { 
-      console.error('JSON parse error:', e);
-      return res.status(500).json({ 
-        error: 'Panchang JSON解析失敗', 
-        raw: text 
-      }); 
-    }
+    const data = JSON.parse(text);
 
-    console.log('Panchang API success');
-    return res.status(200).json(data);
+    console.log('Panchang success');
+    return NextResponse.json(data);
 
   } catch (err) {
     console.error('Panchang Error:', err);
-    return res.status(500).json({ 
-      error: '内部サーバーエラー',
-      message: err.message,
-      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
-    });
+    return NextResponse.json(
+      { error: '内部エラー', message: err.message },
+      { status: 500 }
+    );
   }
 }

@@ -9,6 +9,7 @@ export const taskList = [
   { time: "8:30", job: "KPI確認" },
   { time: "9:30", job: "返品確認　午前" },
   { time: "10:00", job: "FCST 午前" },
+  { time: "10:00", job: "貨物件数実績報告（Wechat）" },
   { time: "10:00", job: "再配達確認　前日分" },
   { time: "10:30", job: "不正ステータス確認" },
   { time: "11:00", job: "サイトユーザー登録住所確認" },
@@ -26,10 +27,10 @@ export const taskList = [
   { time: "17:30", job: "保税エリアの許可貨物確認" },
   { time: "17:30", job: "ヤマト貼替データCS送信" },
   { time: "17:30", job: "FCST 午後" },
+  { time: "17:30", job: "TEMU　4社報告" },
   { time: "17:55", job: "再出荷最終確認" },
   { time: "18:00", job: "現場残貨確認（社員）" },
   { time: "18:00", job: "コールセンター集計（平日テレ）" },
-  { time: "19:00", job: "愛陸車両確認（社員）" },
 ];
 
 export const personList = [
@@ -45,6 +46,10 @@ export const personList = [
   "杜",
   "末安",
   "中野"];
+
+  export const personList_e = [
+  "福田",
+  "高野",];
 
 // AD臺詞
 export const messages = {
@@ -134,4 +139,30 @@ export const prefectures = [
 ];
 
 // 不顯示ad助手的畫面
-export const hidePaths = ["/population", "/yamatocsv"];
+export const hidePaths = ["/population", "/yamatocsv","/fuzaihyou",];
+
+// 不顯示ad助手的畫面
+export const companies = ['SPG', '極光', 'ソフトラン', '桃太郎（藤沢）', '桃太郎（相模原）', 'MJ', 'PS', 'TMG', 'CROUD'];
+
+// メール＆トレロ
+export const categories = [
+    "再出荷依頼",
+    "再配達依頼",
+    "誤配",
+    "不在表未投函",
+    "未対応の催促",
+    "貨物がいつ届くのか?",
+    "住所変更",
+    "中身が足りない",
+    "置き配自体の苦情",
+    "盗難関係",
+    "身に覚えのない貨物",
+    "深夜に配達するな",
+    "オートロック侵入",
+    "ポストに無理やり入れた/はみ出ている",
+    "住所正しいのになぜ来ない",
+    "営業所に引取りに行きたい",
+    "中身の破損",
+    "ドライバーの態度悪い",
+    "該当なし"
+];

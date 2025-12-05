@@ -184,7 +184,7 @@ export default function TaskCheckSheet() {
         {/* 今日のタスク */}
         <div className="table-div">
           <div className="flex justify-between items-center mb-3">
-            <h2 className="text-xl font-bold text-sky-800">今日のタスク</h2>
+            <h2 className="text-xl font-bold">今日のタスク</h2>
             <div className="flex gap-2">
               <ConfirmModal
                 onConfirm={handleClear}
@@ -287,7 +287,7 @@ export default function TaskCheckSheet() {
                 </details>
               ))
             ) : (
-              <p className="text-sm text-sky-800">記録なし</p>
+              <p className="text-sm">履歴なし</p>
             )}
           </div>
         </div>

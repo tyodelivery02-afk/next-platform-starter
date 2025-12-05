@@ -1,7 +1,6 @@
-// pages/api/uranai/daily-horoscope.js
-// 基于星座和日期生成每日运势
+// app/api/uranai/daily-horoscope/route.js
+import { NextResponse } from 'next/server';
 
-// 星座配置
 const ZODIAC_CONFIG = {
   aries: { name: '牡羊座', dates: '3/21-4/19', element: '火', planet: '火星', color: '赤' },
   taurus: { name: '牡牛座', dates: '4/20-5/20', element: '地', planet: '金星', color: '緑' },
@@ -17,7 +16,6 @@ const ZODIAC_CONFIG = {
   pisces: { name: '魚座', dates: '2/19-3/20', element: '水', planet: '海王星', color: '白' }
 };
 
-// 运势模板
 const FORTUNE_TEMPLATES = {
   love: [
     '素晴らしい出会いの予感があります。',
@@ -56,20 +54,17 @@ const FORTUNE_TEMPLATES = {
   ]
 };
 
-// 日付とサインからシード値を生成
 function generateSeed(sign, date) {
   const signValue = Object.keys(ZODIAC_CONFIG).indexOf(sign);
   const dateValue = new Date(date).getDate();
   return signValue * 31 + dateValue;
 }
 
-// シード値から再現可能なランダム値を生成
 function seededRandom(seed, index) {
   const x = Math.sin(seed * 12.9898 + index * 78.233) * 43758.5453;
   return x - Math.floor(x);
 }
 
-// 运势を生成
 function generateHoroscope(sign, date) {
   const config = ZODIAC_CONFIG[sign];
   if (!config) {
@@ -78,16 +73,14 @@ function generateHoroscope(sign, date) {
 
   const seed = generateSeed(sign, date);
   
-  // 各カテゴリーのインデックスを生成
   const loveIndex = Math.floor(seededRandom(seed, 1) * FORTUNE_TEMPLATES.love.length);
   const workIndex = Math.floor(seededRandom(seed, 2) * FORTUNE_TEMPLATES.work.length);
   const moneyIndex = Math.floor(seededRandom(seed, 3) * FORTUNE_TEMPLATES.money.length);
   const healthIndex = Math.floor(seededRandom(seed, 4) * FORTUNE_TEMPLATES.health.length);
   const overallIndex = Math.floor(seededRandom(seed, 5) * FORTUNE_TEMPLATES.overall.length);
   
-  // ラッキーナンバーとカラー
   const luckyNumber = Math.floor(seededRandom(seed, 6) * 99) + 1;
-  const luckyRating = Math.floor(seededRandom(seed, 7) * 5) + 1; // 1-5星
+  const luckyRating = Math.floor(seededRandom(seed, 7) * 5) + 1;
 
   return {
     sign: sign,
@@ -109,25 +102,34 @@ function generateHoroscope(sign, date) {
   };
 }
 
-export default async function handler(req, res) {
-  // 设置CORS头部
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
+export async function GET(request) {
+  return handleRequest(request);
+}
 
+export async function POST(request) {
+  return handleRequest(request);
+}
+
+export async function OPTIONS(request) {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    },
+  });
+}
+
+async function handleRequest(request) {
   try {
-    const { 
-      sign = 'aries',
-      date,
-      timezone = 'Asia/Tokyo' 
-    } = req.query;
+    const { searchParams } = new URL(request.url);
+    const sign = searchParams.get('sign') || 'aries';
+    const date = searchParams.get('date');
+    const timezone = searchParams.get('timezone') || 'Asia/Tokyo';
 
-    console.log('Horoscope API called for sign:', sign, 'date:', date);
+    console.log('Horoscope API called:', sign, date);
 
-    // 日付処理
     let targetDate;
     if (date) {
       targetDate = date;
@@ -139,14 +141,13 @@ export default async function handler(req, res) {
       targetDate = `${year}-${month}-${day}`;
     }
 
-    // 运势生成
     const horoscope = generateHoroscope(sign, targetDate);
 
-    // Panchangデータも取得（オプション）
+    // 尝试获取Panchang数据
     try {
-      const protocol = req.headers['x-forwarded-proto'] || 'http';
-      const host = req.headers.host;
-      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || `${protocol}://${host}`;
+      const protocol = request.headers.get('x-forwarded-proto') || 'http';
+      const host = request.headers.get('host');
+      const baseUrl = process.env.BASE_URL || `${protocol}://${host}`;
       
       const panchangRes = await fetch(
         `${baseUrl}/api/uranai/panchang?date=${targetDate}&timezone=${timezone}`
@@ -160,12 +161,12 @@ export default async function handler(req, res) {
         };
       }
     } catch (e) {
-      console.log('Panchang data not available:', e.message);
+      console.log('Panchang not available:', e.message);
     }
 
-    console.log('Horoscope generated successfully');
+    console.log('Horoscope generated');
 
-    return res.status(200).json({
+    return NextResponse.json({
       status: 'ok',
       data: horoscope,
       timestamp: new Date().toISOString()
@@ -173,10 +174,9 @@ export default async function handler(req, res) {
 
   } catch (err) {
     console.error('Horoscope Error:', err);
-    return res.status(500).json({ 
-      error: '運勢生成エラー',
-      message: err.message,
-      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
-    });
+    return NextResponse.json(
+      { error: '運勢生成エラー', message: err.message },
+      { status: 500 }
+    );
   }
 }

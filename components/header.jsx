@@ -12,6 +12,7 @@ const navItems = [
   { icon: <House size={28} />, href: "/", label: `HOME` },
   { icon: <CheckSquare size={28} />, href: "/taskCheckSheet", label: `TASK` },
   { icon: <Calendar size={28} />, href: "/fcstmaker", label: `FCST作成` },
+  { icon: <Pen size={28} />, href: "/fcatwrite", label: `FCST記入` },
   {
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" fill="currentColor" viewBox="0 0 256 256">
@@ -21,8 +22,7 @@ const navItems = [
     href: "/momotrolley",
     label: `桃カゴ`,
   },
-  { icon: <Pen size={28} />, href: "/fcatwrite", label: `FCST記入` },
-  { icon: <Headset size={28} />, href: "/customer", label: `メール` },
+  { icon: <Headset size={28} />, href: "/complaints", label: `メール＆トレロ` },
   { icon: <CurrencyJpy size={28} />, href: "/compensation", label: `賠償` },
   { icon: <PersonSimpleWalk size={28} />, href: "/fuzaihyou", label: `不在票管理` },
   { icon: <Cat size={28} />, href: "/yamatocsv", label: `ヤマト予定確定データ` },
@@ -35,15 +35,15 @@ const menuIcons = [
     href: "/population",
     label: "地図",
   },
-  //  {
-  //   icon: "/images/dictionary.svg",
-  //   href: "/dictionary",
-  //   label: "辞書",
+   {
+    icon: "/images/dictionary.svg",
+    href: "/dictionary",
+    label: "辞書",
   // }, {
-  //   icon: "/images/constellation.svg",
-  //   href: "/uranai",
-  //   label: "運勢",
-  // },
+    // icon: "/images/constellation.svg",
+    // href: "/uranai",
+    // label: "運勢",
+  },
 ];
 
 

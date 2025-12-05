@@ -375,16 +375,17 @@ export default function TrolleyStatusPage() {
                 </table>
                 <span>※今日以前のデータを修正したい場合は、スーパー管理員にご連絡ください</span>
             </div>
+            <hr className="line-item" />
 
             {/* === 最近7天记录表 === */}
-            <div className="mb-8">
-                <h2 className="text-lg font-semibold mb-2 text-center">
-                    最近7日間の記録
+            <div className="mt-6 mb-2">
+                <h2 className="text-lg font-semibold mb-5">
+                    最近7日間の履歴
                 </h2>
                 <div className="space-y-3">
                     {sortedDates.length === 0 ? (
-                        <div className="text-center p-4">
-                            データがありません
+                        <div className="p-4">
+                            履歴なし
                         </div>
                     ) : (
                         sortedDates.map((date) => (
@@ -394,7 +395,7 @@ export default function TrolleyStatusPage() {
                                 </summary>
                                 <div className="p-3">
                                     <div className="overflow-x-auto">
-                                        <table className="w-full text-gray-800 bg-white backdrop-blur-md rounded-xl border-0 border-collapse text-base shadow-sm text-center">
+                                        <table className="w-full border-collapse">
                                             <thead>
                                                 <tr>
                                                     <th className="p-2 table-title">時間帯</th>
