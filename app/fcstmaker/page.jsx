@@ -315,7 +315,7 @@ export default function FCSTMakerPage() {
 
         <div className="flex items-center gap-2">
           <span className={`font-bold ${mode === "朝" ? "text-black" : "text-white"}`}>
-            エリア集計編集：
+            集計設定：
           </span>
           <AreaEditor mode={mode} />
         </div>

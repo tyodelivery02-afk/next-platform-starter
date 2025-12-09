@@ -280,7 +280,7 @@ export default function DailyDivination() {
               : 'bg-transparent text-gray-300 hover:bg-black'
               }`}
           >
-            星座運勢
+            星占い
           </button>
           <button
             onClick={() => setActiveTab('tarot')}

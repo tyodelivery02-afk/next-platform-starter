@@ -36,15 +36,15 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="relative min-h-screen flex flex-col justify-center items-center bg-gradient-to-b from-sky-200 via-sky-100 to-white overflow-hidden">
+    <div className="relative text-black min-h-screen flex flex-col justify-center items-center bg-gradient-to-b from-sky-200 via-sky-100 to-white overflow-hidden">
       {/* 轻微的云雾层 */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(255,255,255,0.12),transparent_70%)] blur-3xl"></div>
-      <FallingImages numImages={80} />
+      {/* <FallingImages numImages={80} /> */}
 
-      <div className="relative z-10 flex flex-col items-center">
+      <div className="relative z-10 flex flex-col items-center font-mono font-bold text-xl">
         <div className="relative mb-4">
           {/* 图片（贴合输入框顶部） */}
-          <div className="absolute -top-56 left-1/2 -translate-x-1/2 w-52 h-56">
+          {/* <div className="absolute -top-56 left-1/2 -translate-x-1/2 w-52 h-56">
             <Image
               src="/images/nami.png"
               alt="castle"
@@ -55,26 +55,28 @@ export default function LoginPage() {
               }}
               className="opacity-95 drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]"
             />
-          </div>
-
+          </div> */}
+          <span>Enter </span>
           {/* 输入框 */}
           <input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="bg-sky-600/30 text-balck placeholder-gray-400 border border-yellow-200 rounded px-4 py-2 backdrop-blur-md focus:outline-none focus:ring-2 focus:ring-sky-400 transition-all"
-            placeholder="パスワード"
+            placeholder="password"
           />
+          <span>,</span>
         </div>
-
-        <button
-          onClick={handleLogin}
-          disabled={loading}
-          className="relative login-button"
-        >
-          ログイン
-        </button>
-
+        <div>
+          <button
+            onClick={handleLogin}
+            disabled={loading}
+            className="relative login-button"
+          >
+            log in
+          </button>
+          <span> to the website.</span>
+        </div>
         {error && <p className="text-yellow-400 mt-3">{error}</p>}
       </div>
       <WarningModal ref={warningRef} />
