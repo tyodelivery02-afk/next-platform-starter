@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Alert } from './alert';
+import AlertModal from './alert';
 import { Card } from './card';
 
 export function FeedbackForm() {
@@ -43,8 +43,8 @@ export function FeedbackForm() {
                     <button className="btn" type="submit" disabled={status === 'pending'}>
                         Submit
                     </button>
-                    {status === 'ok' && <Alert type="success">Submitted!</Alert>}
-                    {status === 'error' && <Alert type="error">{error}</Alert>}
+                    {status === 'ok' && <AlertModal type="success">Submitted!</AlertModal>}
+                    {status === 'error' && <AlertModal type="error">{error}</AlertModal>}
                 </form>
             </Card>
         </div>
