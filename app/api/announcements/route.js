@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server";
 import { neon } from "@netlify/neon";
 
-const sql = neon(process.env.NETLIFY_DATABASE_URL);
+const sql = neon(); // 自动使用环境变量 NETLIFY_DATABASE_URL
 
 function getClientIp(request) {
   const forwarded = request.headers.get("x-forwarded-for");

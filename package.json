@@ -30,6 +30,7 @@
         "exceljs": "^4.4.0",
         "formidable-serverless": "^1.1.1",
         "framer-motion": "^12.23.25",
+        "googleapis": "^169.0.0",
         "html-to-image": "^1.11.13",
         "html2canvas": "^1.4.1",
         "js-ini": "^1.6.0",

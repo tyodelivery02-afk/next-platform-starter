@@ -160,8 +160,11 @@ export const prefectures = [
 // 不顯示ad助手的畫面
 export const hidePaths = ["/test", "/test2",];
 
-// 不顯示ad助手的畫面
-export const companies = ['SPG', '極光', 'ソフトラン', '桃太郎（藤沢）', '桃太郎（相模原）', 'MJ', 'PS', 'TMG', 'CROUD'];
+// 配送公司
+export const companies = ['SPG', '極光', 'ソフトラン', '桃太郎（藤沢）', '桃太郎（相模原）', 'MJC', 'PSL', 'TMG', 'CRAUD'];
+
+// SPG配送公司
+export const SPGList = ["AHT", "ALP", "ATH", "AVR", "BST", "D4L", "HBN", "HKB", "HPD", "JLT", "LBR"];
 
 // メール＆トレロ
 export const categories = [
@@ -185,3 +188,6 @@ export const categories = [
   "ドライバーの態度悪い",
   "該当なし"
 ];
+
+// 监视关键词
+export const KEYWORDS = ["エスポ便", "エスポリア"];

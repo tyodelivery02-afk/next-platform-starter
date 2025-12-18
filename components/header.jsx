@@ -23,7 +23,7 @@ const navItems = [
     label: `桃カゴ`,
   },
   { icon: <Headset size={28} />, href: "/complaints", label: `メール＆トレロ` },
-  { icon: <CurrencyJpy size={28} />, href: "/compensation", label: `賠償` },
+  { icon: <CurrencyJpy size={28} />, href: "/compensation", label: `チケット関連` },
   { icon: <PersonSimpleWalk size={28} />, href: "/fuzaihyou", label: `不在票管理` },
   { icon: <Cat size={28} />, href: "/yamatocsv", label: `ヤマト予定確定データ` },
 ];
@@ -35,14 +35,18 @@ const menuIcons = [
     href: "/population",
     label: "地図",
   },
-   {
+  {
     icon: "/images/dictionary.svg",
     href: "/dictionary",
     label: "辞書",
-  // }, {
+    // }, {
     // icon: "/images/constellation.svg",
     // href: "/uranai",
     // label: "運勢",
+  }, {
+    icon: "/images/newspaper.svg",
+    href: "/monitor",
+    label: "エゴサ",
   },
 ];
 
