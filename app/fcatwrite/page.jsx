@@ -214,14 +214,6 @@ export default function ForecastInputPage() {
             <div className="flex justify-between items-center mb-6">
                 <h2 className="relative text-x2 font-bold text-black text-shadow">フォーキャスト入力</h2>
             </div>
-            <div
-                className="w-full h-6 my-6"
-                style={{
-                    backgroundImage: "url(/images/divider.svg)",
-                    backgroundRepeat: "repeat-x",
-                    backgroundSize: "auto 35%",
-                }}
-            ></div>
 
             {/* 件数入力欄 */}
             <div className="mb-4">

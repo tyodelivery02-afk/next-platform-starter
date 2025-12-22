@@ -240,16 +240,6 @@ const InventoryManagement = () => {
                 </h2>
             </div>
 
-            <div
-                className="w-full h-6 my-6"
-                style={{
-                    backgroundImage: "url(/images/divider.svg)",
-                    backgroundRepeat: "repeat-x",
-                    backgroundSize: "auto 35%",
-                    opacity: 0.8,
-                }}
-            />
-
             {/* 在库枚数管理区域 */}
             <div className="mb-8">
                 {/* --------------- 第 1 行：在庫 --------------- */}

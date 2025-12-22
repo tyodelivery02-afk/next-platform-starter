@@ -304,19 +304,8 @@ export default function SheetsDisplayPage() {
                 </h2>
             </div>
 
-            <div
-                className="w-full h-6 my-6"
-                style={{
-                    backgroundImage: "url(/images/divider.svg)",
-                    backgroundRepeat: "repeat-x",
-                    backgroundSize: "auto 35%",
-                }}
-            ></div>
-
             {/* 検索フォーム */}
             <div className="mb-8 rounded-xl p-6 bg-white shadow-md">
-                <h3 className="text-lg font-semibold mb-4">検索条件</h3>
-
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     {/* 配送業者 */}
                     <div>
@@ -328,7 +317,7 @@ export default function SheetsDisplayPage() {
                                     onClick={() => toggleSelection(delivery, selectedDelivery, setSelectedDelivery)}
                                     className={`px-4 py-2 rounded ${selectedDelivery.includes(delivery)
                                         ? "bg-sky-400 text-white"
-                                        : "orther-button"
+                                        : "select-button"
                                         }`}
                                 >
                                     {delivery}
@@ -348,7 +337,7 @@ export default function SheetsDisplayPage() {
                                         onClick={() => toggleSelection(tanto, selectedTanto, setSelectedTanto)}
                                         className={`px-2 py-1 rounded text-sm ${selectedTanto.includes(tanto)
                                             ? "bg-sky-400 text-white"
-                                            : "orther-button"
+                                            : "select-button"
                                             }`}
                                     >
                                         {tanto}
@@ -466,7 +455,7 @@ export default function SheetsDisplayPage() {
                                     onClick={() => toggleSelection(type, selectedTicketType, setSelectedTicketType)}
                                     className={`px-4 py-2 rounded ${selectedTicketType.includes(type)
                                         ? "bg-sky-400 text-white"
-                                        : "orther-button"
+                                        : "select-button"
                                         }`}
                                 >
                                     {type}
@@ -519,7 +508,7 @@ export default function SheetsDisplayPage() {
                                     onClick={() => toggleSelection(result, selectedResult, setSelectedResult)}
                                     className={`px-4 py-2 rounded ${selectedResult.includes(result)
                                         ? "bg-sky-400 text-white"
-                                        : "orther-button"
+                                        : "select-button"
                                         }`}
                                 >
                                     {result}
@@ -530,7 +519,7 @@ export default function SheetsDisplayPage() {
 
                     {/* 記入時間 */}
                     <div>
-                        <label className="block text-sm font-medium mb-2">記入時間(自動)</label>
+                        <label className="block text-sm font-medium mb-2">記入時間</label>
                         <div className="flex gap-2">
                             <input
                                 type="date"
@@ -558,7 +547,7 @@ export default function SheetsDisplayPage() {
                                     onClick={() => toggleSelection(recorder, selectedRecorder, setSelectedRecorder)}
                                     className={`px-3 py-1 rounded text-sm ${selectedRecorder.includes(recorder)
                                         ? "bg-sky-400 text-white"
-                                        : "orther-button"
+                                        : "select-button"
                                         }`}
                                 >
                                     {recorder}
@@ -569,57 +558,8 @@ export default function SheetsDisplayPage() {
                 </div>
             </div>
 
-            {/* 円グラフ表示 */}
-            {filteredData.length > 0 && (
-                <div className="mb-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {selectedDelivery.length > 0 && (
-                        <div className="rounded-xl p-6 bg-white shadow-md">
-                            <h4 className="text-center font-semibold mb-4">配送業者</h4>
-                            <Pie data={generateChartData("配送業者", "配送業者")} options={chartOptions} />
-                        </div>
-                    )}
-
-                    {(selectedTanto.length > 0 || tantoInputs.some(t => t.trim())) && (
-                        <div className="rounded-xl p-6 bg-white shadow-md">
-                            <h4 className="text-center font-semibold mb-4">担当</h4>
-                            <Pie data={generateChartData("担当", "担当")} options={chartOptions} />
-                        </div>
-                    )}
-
-                    {selectedTicketType.length > 0 && (
-                        <div className="rounded-xl p-6 bg-white shadow-md">
-                            <h4 className="text-center font-semibold mb-4">Ticketタイプ</h4>
-                            <Pie data={generateChartData("TicketType", "Ticketタイプ")} options={chartOptions} />
-                        </div>
-                    )}
-
-                    {reasons.some(r => r.trim()) && (
-                        <div className="rounded-xl p-6 bg-white shadow-md">
-                            <h4 className="text-center font-semibold mb-4">理由</h4>
-                            <Pie data={generateChartData("理由", "理由")} options={chartOptions} />
-                        </div>
-                    )}
-
-                    {selectedResult.length > 0 && (
-                        <div className="rounded-xl p-6 bg-white shadow-md">
-                            <h4 className="text-center font-semibold mb-4">結果</h4>
-                            <Pie data={generateChartData("結果", "結果")} options={chartOptions} />
-                        </div>
-                    )}
-
-                    {selectedRecorder.length > 0 && (
-                        <div className="rounded-xl p-6 bg-white shadow-md">
-                            <h4 className="text-center font-semibold mb-4">記入者</h4>
-                            <Pie data={generateChartData("記入者", "記入者")} options={chartOptions} />
-                        </div>
-                    )}
-                </div>
-            )}
-
             {/* 検索結果表示 */}
-            <div className="mt-6">
-                <h3 className="text-lg font-semibold mb-4">検索結果</h3>
-
+            <div className="mt-6 mb-8 ">
                 {filteredData.length === 0 ? (
                     <div className="p-4 bg-white rounded-xl shadow-md text-center">
                         データがありません
@@ -696,6 +636,53 @@ export default function SheetsDisplayPage() {
                     </>
                 )}
             </div>
+
+            {/* 円グラフ表示 */}
+            {filteredData.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {selectedDelivery.length > 0 && (
+                        <div className="rounded-xl p-6 bg-white shadow-md">
+                            <h4 className="text-center font-semibold mb-4">配送業者</h4>
+                            <Pie data={generateChartData("配送業者", "配送業者")} options={chartOptions} />
+                        </div>
+                    )}
+
+                    {(selectedTanto.length > 0 || tantoInputs.some(t => t.trim())) && (
+                        <div className="rounded-xl p-6 bg-white shadow-md">
+                            <h4 className="text-center font-semibold mb-4">担当</h4>
+                            <Pie data={generateChartData("担当", "担当")} options={chartOptions} />
+                        </div>
+                    )}
+
+                    {selectedTicketType.length > 0 && (
+                        <div className="rounded-xl p-6 bg-white shadow-md">
+                            <h4 className="text-center font-semibold mb-4">Ticketタイプ</h4>
+                            <Pie data={generateChartData("TicketType", "Ticketタイプ")} options={chartOptions} />
+                        </div>
+                    )}
+
+                    {reasons.some(r => r.trim()) && (
+                        <div className="rounded-xl p-6 bg-white shadow-md">
+                            <h4 className="text-center font-semibold mb-4">理由</h4>
+                            <Pie data={generateChartData("理由", "理由")} options={chartOptions} />
+                        </div>
+                    )}
+
+                    {selectedResult.length > 0 && (
+                        <div className="rounded-xl p-6 bg-white shadow-md">
+                            <h4 className="text-center font-semibold mb-4">結果</h4>
+                            <Pie data={generateChartData("結果", "結果")} options={chartOptions} />
+                        </div>
+                    )}
+
+                    {selectedRecorder.length > 0 && (
+                        <div className="rounded-xl p-6 bg-white shadow-md">
+                            <h4 className="text-center font-semibold mb-4">記入者</h4>
+                            <Pie data={generateChartData("記入者", "記入者")} options={chartOptions} />
+                        </div>
+                    )}
+                </div>
+            )}
 
             <WarningModal ref={warningRef} />
             <LoadingModal show={loading} message="Loading..." />

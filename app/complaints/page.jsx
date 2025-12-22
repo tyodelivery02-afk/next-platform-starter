@@ -249,15 +249,6 @@ export default function ComplaintPage() {
                 </h2>
             </div>
 
-            <div
-                className="w-full h-6 my-6"
-                style={{
-                    backgroundImage: "url(/images/divider.svg)",
-                    backgroundRepeat: "repeat-x",
-                    backgroundSize: "auto 35%",
-                }}
-            ></div>
-
             <div className="mb-8 rounded-xl p-6">
 
                 <div className="overflow-y-auto mb-6" style={{ maxHeight: 'calc(3 * 60px)' }}>
@@ -312,7 +303,7 @@ export default function ComplaintPage() {
                             onClick={() => handlePeriodChange("today")}
                             className={`px-4 py-2 rounded ${chartPeriod === "today"
                                 ? "bg-sky-400 text-white"
-                                : "orther-button"
+                                : "select-button"
                                 }`}
                         >
                             本日
@@ -321,7 +312,7 @@ export default function ComplaintPage() {
                             onClick={() => handlePeriodChange("month")}
                             className={`px-4 py-2 rounded ${chartPeriod === "month"
                                 ? "bg-sky-400 text-white"
-                                : "orther-button"
+                                : "select-button"
                                 }`}
                         >
                             最近1ヶ月
@@ -330,7 +321,7 @@ export default function ComplaintPage() {
                             onClick={() => handlePeriodChange("year")}
                             className={`px-4 py-2 rounded ${chartPeriod === "year"
                                 ? "bg-sky-400 text-white"
-                                : "orther-button"
+                                : "select-button"
                                 }`}
                         >
                             最近1年

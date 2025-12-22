@@ -231,14 +231,6 @@ export default function CSVProcessor() {
             <div className="flex justify-between items-center mb-6">
                 <h2 className="relative text-x2 font-bold text-black text-shadow">ヤマト予定確定データ</h2>
             </div>
-            <div
-                className="w-full h-6 my-6"
-                style={{
-                    backgroundImage: "url(/images/divider.svg)",
-                    backgroundRepeat: "repeat-x",
-                    backgroundSize: "auto 35%",
-                }}
-            ></div>
 
             {/* 兩列布局 */}
             <div className="flex flex-col md:flex-row gap-8">

@@ -10,63 +10,63 @@ function hash(text) {
 }
 
 // ===== Twitter =====
-// async function collectTwitter(keyword) {
-//     const url =
-//         `https://api.twitter.com/2/tweets/search/recent` +
-//         `?query=${encodeURIComponent(keyword)} -is:retweet` +
-//         `&tweet.fields=created_at,author_id&max_results=50`;
+async function collectTwitter(keyword) {
+    const url =
+        `https://api.twitter.com/2/tweets/search/recent` +
+        `?query=${encodeURIComponent(keyword)} -is:retweet` +
+        `&tweet.fields=created_at,author_id&max_results=50`;
 
-//     const res = await fetch(url, {
-//         headers: {
-//             Authorization: `Bearer ${process.env.TWITTER_BEARER_TOKEN}`
-//         }
-//     });
+    const res = await fetch(url, {
+        headers: {
+            Authorization: `Bearer ${process.env.TWITTER_BEARER_TOKEN}`
+        }
+    });
 
-//     if (!res.ok) {
-//         const text = await res.text();
-        
-//         if (res.status === 429) {
-//             return {
-//                 success: false,
-//                 error: "Twitter API 请求限制，请稍后再试",
-//                 code: 429
-//             };
-//         }
-        
-//         throw new Error(`Twitter API ${res.status}: ${text}`);
-//     }
+    if (!res.ok) {
+        const text = await res.text();
 
-//     const json = await res.json();
-//     if (!json.data || json.data.length === 0) {
-//         return { success: true, count: 0 };
-//     }
+        if (res.status === 429) {
+            return {
+                success: false,
+                error: "Twitter API 请求限制，请稍后再试",
+                code: 429
+            };
+        }
 
-//     let insertedCount = 0;
-//     for (const t of json.data) {
-//         const id = `tw_${t.id}`;
-//         try {
-//             const result = await sql`
-//                 INSERT INTO monitored_items
-//                 (id, source, keyword, content, published_at, url)
-//                 VALUES (
-//                     ${id},
-//                     'twitter',
-//                     ${keyword},
-//                     ${t.text},
-//                     ${t.created_at},
-//                     ${`https://x.com/i/web/status/${t.id}`}
-//                 )
-//                 ON CONFLICT (url) DO NOTHING
-//                 RETURNING id
-//             `;
-//             if (result.length > 0) insertedCount++;
-//         } catch (e) {
-//             console.error(`插入 Twitter 数据失败 (${id}):`, e.message);
-//         }
-//     }
+        throw new Error(`Twitter API ${res.status}: ${text}`);
+    }
 
-//     return { success: true, count: insertedCount };
-// }
+    const json = await res.json();
+    if (!json.data || json.data.length === 0) {
+        return { success: true, count: 0 };
+    }
+
+    let insertedCount = 0;
+    for (const t of json.data) {
+        const id = `tw_${t.id}`;
+        try {
+            const result = await sql`
+                INSERT INTO monitored_items
+                (id, source, keyword, content, published_at, url)
+                VALUES (
+                    ${id},
+                    'twitter',
+                    ${keyword},
+                    ${t.text},
+                    ${t.created_at},
+                    ${`https://x.com/i/web/status/${t.id}`}
+                )
+                ON CONFLICT (url) DO NOTHING
+                RETURNING id
+            `;
+            if (result.length > 0) insertedCount++;
+        } catch (e) {
+            console.error(`插入 Twitter 数据失败 (${id}):`, e.message);
+        }
+    }
+
+    return { success: true, count: insertedCount };
+}
 
 // ===== 通用 Google 搜索 =====
 async function collectGoogleSearch(keyword) {
@@ -74,16 +74,16 @@ async function collectGoogleSearch(keyword) {
         // 使用 Google Custom Search API 或 Programmable Search Engine
         const GOOGLE_API_KEY = process.env.GOOGLE_SEARCH_API_KEY;
         const GOOGLE_CX = process.env.GOOGLE_SEARCH_CX; // Custom Search Engine ID
-        
+
         if (!GOOGLE_API_KEY || !GOOGLE_CX) {
             console.log('Google Search API 未配置，跳过');
             return { success: false, error: "Google Search API 未配置" };
         }
 
         const url = `https://www.googleapis.com/customsearch/v1?key=${GOOGLE_API_KEY}&cx=${GOOGLE_CX}&q=${encodeURIComponent(keyword)}&num=10`;
-        
+
         const res = await fetch(url);
-        
+
         if (!res.ok) {
             return { success: false, error: `Google Search API ${res.status}` };
         }
@@ -129,7 +129,7 @@ async function collectGoogleSearch(keyword) {
 async function collectSerpAPI(keyword) {
     try {
         const SERPAPI_KEY = process.env.SERPAPI_KEY;
-        
+
         if (!SERPAPI_KEY) {
             console.log('SerpAPI 未配置，跳过');
             return { success: false, error: "SerpAPI 未配置" };
@@ -137,9 +137,9 @@ async function collectSerpAPI(keyword) {
 
         // SerpAPI - 提供真实的 Google 搜索结果
         const url = `https://serpapi.com/search.json?q=${encodeURIComponent(keyword)}&api_key=${SERPAPI_KEY}&num=20`;
-        
+
         const res = await fetch(url);
-        
+
         if (!res.ok) {
             return { success: false, error: `SerpAPI ${res.status}` };
         }
@@ -186,7 +186,7 @@ async function collectYahooJapanNews(keyword) {
     try {
         // Yahoo! Japan News RSS
         const rssUrl = `https://news.yahoo.co.jp/rss/topics/top-picks.xml`;
-        
+
         const res = await fetch(rssUrl);
         if (!res.ok) {
             return { success: false, error: `Yahoo Japan RSS ${res.status}` };
@@ -243,9 +243,9 @@ async function collectYahooJapanNews(keyword) {
 async function collectGoogleNewsJapan(keyword) {
     try {
         const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(keyword)}&hl=ja&gl=JP&ceid=JP:ja`;
-        
+
         console.log(`📰 搜索日本新闻: ${keyword}`);
-        
+
         const res = await fetch(rssUrl);
         if (!res.ok) {
             return { success: false, error: `Google News Japan ${res.status}` };
@@ -299,7 +299,7 @@ async function collect5ch(keyword) {
         // 5ch (旧 2ch) 的搜索 API
         // 注意：5ch 没有官方 API，这里使用第三方搜索服务
         const url = `https://find.5ch.net/search?q=${encodeURIComponent(keyword)}`;
-        
+
         const res = await fetch(url, {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
@@ -311,7 +311,7 @@ async function collect5ch(keyword) {
         }
 
         const html = await res.text();
-        
+
         // 简单的 HTML 解析（实际应用中建议使用专门的解析库）
         const threadMatches = [...html.matchAll(/<a href="(https:\/\/[^"]+\/test\/read\.cgi\/[^"]+)"[^>]*>([^<]+)<\/a>/g)];
 
@@ -353,7 +353,7 @@ async function collectNote(keyword) {
     try {
         // note 的搜索页面
         const url = `https://note.com/search?context=note&q=${encodeURIComponent(keyword)}&sort=new`;
-        
+
         const res = await fetch(url, {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -366,7 +366,7 @@ async function collectNote(keyword) {
         }
 
         const html = await res.text();
-        
+
         // 提取文章链接（简化版，实际可能需要更复杂的解析）
         const articleMatches = [...html.matchAll(/href="(\/[^"]+\/n\/[^"]+)"/g)];
 
@@ -404,17 +404,17 @@ async function collectNote(keyword) {
 
 export async function POST(req) {
     const startTime = Date.now();
-    
+
     // 验证请求来源
     const authHeader = req.headers.get('authorization');
     const cronSecret = process.env.CRON_SECRET;
     const isVercelCron = req.headers.get('x-vercel-cron');
     const isNetlifyCron = req.headers.get('x-netlify-scheduled');
-    
-    const triggeredBy = isVercelCron ? 'vercel-cron' : 
-                       isNetlifyCron ? 'netlify-cron' : 
-                       'manual';
-    
+
+    const triggeredBy = isVercelCron ? 'vercel-cron' :
+        isNetlifyCron ? 'netlify-cron' :
+            'manual';
+
     if (cronSecret && !isVercelCron && !isNetlifyCron) {
         if (authHeader !== `Bearer ${cronSecret}`) {
             return NextResponse.json(
@@ -476,21 +476,21 @@ export async function POST(req) {
             }
 
             // Twitter
-            // try {
-            //     const twitterResult = await collectTwitter(keyword);
-            //     results.twitter[keyword] = twitterResult;
-            //     if (!twitterResult.success) {
-            //         results.errors.push({
-            //             source: 'twitter',
-            //             keyword,
-            //             error: twitterResult.error
-            //         });
-            //     }
-            // } catch (e) {
-            //     console.error(`Twitter 收集失败 (${keyword}):`, e);
-            //     results.twitter[keyword] = { success: false, error: e.message };
-            //     results.errors.push({ source: 'twitter', keyword, error: e.message });
-            // }
+            try {
+                const twitterResult = await collectTwitter(keyword);
+                results.twitter[keyword] = twitterResult;
+                if (!twitterResult.success) {
+                    results.errors.push({
+                        source: 'twitter',
+                        keyword,
+                        error: twitterResult.error
+                    });
+                }
+            } catch (e) {
+                console.error(`Twitter 收集失败 (${keyword}):`, e);
+                results.twitter[keyword] = { success: false, error: e.message };
+                results.errors.push({ source: 'twitter', keyword, error: e.message });
+            }
 
             // Google News Japan
             try {
@@ -576,7 +576,7 @@ export async function POST(req) {
         const twitterTotal = Object.values(results.twitter)
             .filter(r => r.success)
             .reduce((sum, r) => sum + (r.count || 0), 0);
-        
+
         const googleNewsTotal = Object.values(results.googleNews)
             .filter(r => r.success)
             .reduce((sum, r) => sum + (r.count || 0), 0);
@@ -595,8 +595,8 @@ export async function POST(req) {
 
         const duration = Date.now() - startTime;
         const totalCount = googleSearchTotal + bingSearchTotal + twitterTotal + googleNewsTotal + yahooTotal + fivechTotal + noteTotal;
-        const status = results.errors.length === 0 ? 'success' : 
-                      (totalCount > 0 ? 'partial' : 'failed');
+        const status = results.errors.length === 0 ? 'success' :
+            (totalCount > 0 ? 'partial' : 'failed');
 
         // 记录到日志表
         try {
@@ -636,7 +636,7 @@ export async function POST(req) {
 
     } catch (e) {
         const duration = Date.now() - startTime;
-        
+
         try {
             await sql`
                 INSERT INTO cron_logs

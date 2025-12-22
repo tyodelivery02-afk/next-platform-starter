@@ -170,16 +170,6 @@ export default function TaskCheckSheet() {
         </h2>
       </div>
 
-      <div
-        className="w-full h-6 my-6"
-        style={{
-          backgroundImage: "url(/images/divider.svg)",
-          backgroundRepeat: "repeat-x",
-          backgroundSize: "auto 35%",
-          opacity: 0.8,
-        }}
-      />
-
       <div className="grid grid-cols-2 gap-6">
         {/* 今日のタスク */}
         <div className="table-div">
@@ -220,8 +210,8 @@ export default function TaskCheckSheet() {
                   <td className="border border-white px-3 py-2">
                     <select
                       className={`w-full p-2 border rounded transition-colors duration-300 ${task.person === ""
-                          ? "bg-yellow-50 border-yellow-200"
-                          : "bg-sky-50 border-sky-200"
+                        ? "bg-yellow-50 border-yellow-200"
+                        : "bg-sky-50 border-sky-200"
                         }`}
                       value={task.person}
                       onChange={(e) => handlePersonChange(idx, e.target.value)}
