@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { revalidateTag } from 'next/cache';
 import { Card } from 'components/card';
 import { Markdown } from 'components/markdown';
