@@ -161,7 +161,7 @@ export const prefectures = [
 export const hidePaths = ["/test", "/test2",];
 
 // 配送公司
-export const companies = ['SPG', '極光', 'ソフトラン', '桃太郎（藤沢）', '桃太郎（相模原）', 'MJC', 'PSL', 'TMG', 'CRAUD'];
+export const companies = ['SPG', '極光', 'ソフトラン', '桃太郎（藤沢）', '桃太郎（相模原）', 'MJC', 'PSL', 'TMG', 'CRAUD','ESP','ヤマト','佐川',];
 
 // SPG配送公司
 export const SPGList = ["AHT", "ALP", "ATH", "AVR", "BST", "D4L", "HBN", "HKB", "HPD", "JLT", "LBR"];

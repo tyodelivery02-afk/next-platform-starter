@@ -25,15 +25,15 @@ export default function SheetsDisplayPage() {
     // 検索条件
     const [selectedDelivery, setSelectedDelivery] = useState([]);
     const [selectedTanto, setSelectedTanto] = useState([]);
-    const [houseNumbers, setHouseNumbers] = useState([""]); // 改为数组
-    const [ticketNos, setTicketNos] = useState([""]); // 改为数组
+    const [houseNumbers, setHouseNumbers] = useState("");
+    const [ticketNos, setTicketNos] = useState("");
     const [selectedTicketType, setSelectedTicketType] = useState([]);
-    const [reasons, setReasons] = useState([""]); // 改为数组
+    const [reasons, setReasons] = useState([""]);
     const [selectedResult, setSelectedResult] = useState(["成立"]);
     const [startDate, setStartDate] = useState("");
     const [endDate, setEndDate] = useState("");
     const [selectedRecorder, setSelectedRecorder] = useState([]);
-    const [tantoInputs, setTantoInputs] = useState([""]); // 新增：担当输入框数组
+    const [tantoInputs, setTantoInputs] = useState([""]);
 
     // 分页状态
     const [currentPage, setCurrentPage] = useState(1);
@@ -92,22 +92,30 @@ export default function SheetsDisplayPage() {
             filtered = filtered.filter(item => allTanto.includes(item.担当));
         }
 
-        // HOUSE番号フィルタ（多个输入框）
-        const validHouseNumbers = houseNumbers.filter(h => h.trim());
-        if (validHouseNumbers.length > 0) {
+        // HOUSE番号フィルタ
+        const houseList = houseNumbers
+            .split(",")
+            .map(h => h.trim())
+            .filter(Boolean);
+
+        if (houseList.length > 0) {
             filtered = filtered.filter(item =>
-                validHouseNumbers.some(h =>
-                    item.HOUSE番号.toLowerCase().includes(h.toLowerCase())
+                houseList.some(h =>
+                    item.HOUSE番号?.toLowerCase().includes(h.toLowerCase())
                 )
             );
         }
 
-        // Ticket Noフィルタ（多个输入框）
-        const validTicketNos = ticketNos.filter(t => t.trim());
-        if (validTicketNos.length > 0) {
+        // Ticket Noフィルタ
+        const ticketList = ticketNos
+            .split(",")
+            .map(t => t.trim())
+            .filter(Boolean);
+
+        if (ticketList.length > 0) {
             filtered = filtered.filter(item =>
-                validTicketNos.some(t =>
-                    item.TicketNo.toLowerCase().includes(t.toLowerCase())
+                ticketList.some(t =>
+                    item.TicketNo?.toLowerCase().includes(t.toLowerCase())
                 )
             );
         }
@@ -310,7 +318,7 @@ export default function SheetsDisplayPage() {
                     {/* 配送業者 */}
                     <div>
                         <label className="block text-sm font-medium mb-2">配送業者</label>
-                        <div className="flex gap-2">
+                        <div className="flex flex-wrap gap-2 w-4/5">
                             {companies.map(delivery => (
                                 <button
                                     key={delivery}
@@ -381,33 +389,13 @@ export default function SheetsDisplayPage() {
                     <div>
                         <label className="block text-sm font-medium mb-2">HOUSE番号</label>
                         <div className="space-y-2">
-                            {houseNumbers.map((value, index) => (
-                                <div key={index} className="flex gap-2">
-                                    <input
-                                        type="text"
-                                        value={value}
-                                        onChange={(e) => updateInput(houseNumbers, setHouseNumbers, index, e.target.value)}
-                                        className="inputfile-item flex-1"
-                                        placeholder="HOUSE番号を入力"
-                                    />
-                                    {houseNumbers.length > 1 && (
-                                        <button
-                                            onClick={() => removeInput(houseNumbers, setHouseNumbers, index)}
-                                            className="minus-button"
-                                        >
-                                            <X size={20} weight="bold" />
-                                        </button>
-                                    )}
-                                    {index === houseNumbers.length - 1 && (
-                                        <button
-                                            onClick={() => addInput(houseNumbers, setHouseNumbers)}
-                                            className="plus-button"
-                                        >
-                                            <Plus size={20} weight="bold" />
-                                        </button>
-                                    )}
-                                </div>
-                            ))}
+                            <input
+                                type="text"
+                                value={houseNumbers}
+                                onChange={(e) => setHouseNumbers(e.target.value)}
+                                className="inputfile-item w-3/4"
+                                placeholder="カンマ区切りで複数検索"
+                            />
                         </div>
                     </div>
 
@@ -415,33 +403,13 @@ export default function SheetsDisplayPage() {
                     <div>
                         <label className="block text-sm font-medium mb-2">Ticket No</label>
                         <div className="space-y-2">
-                            {ticketNos.map((value, index) => (
-                                <div key={index} className="flex gap-2">
-                                    <input
-                                        type="text"
-                                        value={value}
-                                        onChange={(e) => updateInput(ticketNos, setTicketNos, index, e.target.value)}
-                                        className="inputfile-item flex-1"
-                                        placeholder="Ticket Noを入力"
-                                    />
-                                    {ticketNos.length > 1 && (
-                                        <button
-                                            onClick={() => removeInput(ticketNos, setTicketNos, index)}
-                                            className="minus-button"
-                                        >
-                                            <X size={20} weight="bold" />
-                                        </button>
-                                    )}
-                                    {index === ticketNos.length - 1 && (
-                                        <button
-                                            onClick={() => addInput(ticketNos, setTicketNos)}
-                                            className="plus-button"
-                                        >
-                                            <Plus size={20} weight="bold" />
-                                        </button>
-                                    )}
-                                </div>
-                            ))}
+                            <input
+                                type="text"
+                                value={ticketNos}
+                                onChange={(e) => setTicketNos(e.target.value)}
+                                className="inputfile-item w-4/5"
+                                placeholder="カンマ区切りで複数検索"
+                            />
                         </div>
                     </div>
 
@@ -520,7 +488,7 @@ export default function SheetsDisplayPage() {
                     {/* 記入時間 */}
                     <div>
                         <label className="block text-sm font-medium mb-2">記入時間</label>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 w-1/2">
                             <input
                                 type="date"
                                 value={startDate}

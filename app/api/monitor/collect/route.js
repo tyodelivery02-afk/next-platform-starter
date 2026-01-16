@@ -14,7 +14,7 @@ async function collectTwitter(keyword) {
     const url =
         `https://api.twitter.com/2/tweets/search/recent` +
         `?query=${encodeURIComponent(keyword)} -is:retweet` +
-        `&tweet.fields=created_at,author_id&max_results=50`;
+        `&tweet.fields=created_at,author_id&max_results=10`;
 
     const res = await fetch(url, {
         headers: {

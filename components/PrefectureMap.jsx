@@ -3,28 +3,42 @@ import { useEffect, useRef, useState } from "react";
 import { ComposableMap, Geographies, Geography } from "react-simple-maps";
 import { select } from "d3-selection";
 import { zoom } from "d3-zoom";
-import { geoCentroid } from "d3-geo";
+import { geoPath } from "d3-geo";
 
-export default function PrefectureMap({ 
-  prefCode, 
-  selectedAreas, 
+export default function PrefectureMap({
+  prefCode,
+  selectedAreas,
   areaColors,
   colorPalette,
-  onSelect, 
-  onBack, 
-  onLoad 
+  onSelect,
+  onBack,
+  onLoad
 }) {
   const svgRef = useRef(null);
   const [transform, setTransform] = useState({ k: 1, x: 0, y: 0 });
+  const [mapConfig, setMapConfig] = useState({
+    scale: 2200,
+    center: [139.7, 35.7]
+  });
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const loadedPrefCodeRef = useRef(null);
+  const pendingConfigRef = useRef(null); // 用于暂存从JSON读取的配置
 
   // 切换县级地图时重置 transform 和数据加载状态
   useEffect(() => {
     setTransform({ k: 1, x: 0, y: 0 });
     setIsDataLoaded(false);
     loadedPrefCodeRef.current = null;
+    setMapConfig({ scale: 2200, center: [139.7, 35.7] });
   }, [prefCode]);
+
+  // 专门处理配置更新的 Effect，修复 "Cannot update a component while rendering" 报错
+  useEffect(() => {
+    if (isDataLoaded && pendingConfigRef.current) {
+      setMapConfig(pendingConfigRef.current);
+      pendingConfigRef.current = null; // 处理完后清空
+    }
+  }, [isDataLoaded]);
 
   // 初始化拖拽缩放
   useEffect(() => {
@@ -76,26 +90,39 @@ export default function PrefectureMap({
       <ComposableMap
         ref={svgRef}
         projection="geoMercator"
-        projectionConfig={{ scale: 2200, center: [139.7, 35.7] }}
+        projectionConfig={{
+          scale: mapConfig.scale,
+          center: mapConfig.center
+        }}
         width={800}
         height={600}
       >
         <g transform={`translate(${transform.x},${transform.y}) scale(${transform.k})`}>
-          <Geographies geography={`/maps/prefecture/${prefCode}.geojson`}>
+          <Geographies geography={`/maps/prefecture/${prefCode}.json`}>
             {({ geographies, projection }) => {
               if (geographies && geographies.length > 0 && loadedPrefCodeRef.current !== prefCode) {
-                const geoJSON = {
-                  type: "FeatureCollection",
-                  features: geographies
-                };
-                
+                const firstGeo = geographies[0];
+                if (firstGeo && firstGeo.properties) {
+                  const customScale = firstGeo.properties.map_scale;
+                  const customCenter = firstGeo.properties.map_center;
+
+                  // 存入 Ref 而不是在此直接 setState
+                  if (customScale || customCenter) {
+                    pendingConfigRef.current = {
+                      scale: Number(customScale) || 2200,
+                      center: customCenter || [139.7, 35.7]
+                    };
+                  }
+                }
+
+                const geoJSON = { type: "FeatureCollection", features: geographies };
                 loadedPrefCodeRef.current = prefCode;
-                
+
                 setTimeout(() => {
                   if (loadedPrefCodeRef.current === prefCode) {
-                    setIsDataLoaded(true);
+                    setIsDataLoaded(true); // 触发副作用中的 setMapConfig
                     if (onLoad) {
-                      console.log("県地図データ読み込み完了:", prefCode);
+                      console.log("県地図数据读取完成:", prefCode);
                       onLoad(geoJSON);
                     }
                   }
@@ -115,9 +142,8 @@ export default function PrefectureMap({
 
                 const isSelected = selectedAreas.includes(code);
                 const colorId = areaColors[code];
-                
-                // 根据颜色ID获取填充色
-                let fillColor = "#93c5fd"; // 默认浅蓝色
+
+                let fillColor = "#93c5fd";
                 if (isSelected && colorId) {
                   fillColor = colorPalette[colorId];
                 }
@@ -141,7 +167,8 @@ export default function PrefectureMap({
                 );
               });
 
-              // 文字（最前层）
+              // 文字(最前层)
+              const pathGenerator = geoPath().projection(projection);
               const labels = geographies.map((geo) => {
                 const name =
                   geo.properties.N03_004 ||
@@ -152,15 +179,17 @@ export default function PrefectureMap({
                 if (shownNames.has(name)) return null;
                 shownNames.add(name);
 
-                const [cx, cy] = geoCentroid(geo);
-                const projected = projection([cx, cy]);
-                if (!projected) return null;
+                const centroid = pathGenerator.centroid(geo);
+                if (!centroid || isNaN(centroid[0]) || isNaN(centroid[1])) return null;
+
+                const offsetX = geo.properties.label_offset_x || 0;
+                const offsetY = geo.properties.label_offset_y || 0;
 
                 return (
                   <text
                     key={name}
-                    x={projected[0]}
-                    y={projected[1]}
+                    x={centroid[0] + offsetX}
+                    y={centroid[1] + offsetY}
                     textAnchor="middle"
                     fontSize={6 / transform.k}
                     fill="#111"
@@ -174,10 +203,7 @@ export default function PrefectureMap({
 
               return (
                 <>
-                  {/* 底层地图 */}
                   {geoList}
-
-                  {/* 顶层文字 */}
                   <g>{labels}</g>
                 </>
               );

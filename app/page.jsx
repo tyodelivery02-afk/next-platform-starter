@@ -134,14 +134,6 @@ export default function Home() {
         <h2 className="relative text-x2 font-bold text-black text-shadow">掲示板</h2>
       </div>
       <div
-        className="w-full h-6 my-6"
-        style={{
-          backgroundImage: "url(/images/divider.svg)",
-          backgroundRepeat: "repeat-x",
-          backgroundSize: "auto 35%",
-        }}
-      ></div>
-      <div
         className="backdrop-blur-md bg-white/10 border border-sky-300 shadow-md 
                rounded-xl p-8 w-full max-w-7xl transition-all duration-500 
                hover:shadow-yellow-200 hover:scale-101"
