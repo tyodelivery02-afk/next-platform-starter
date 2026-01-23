@@ -61,7 +61,7 @@ export default function Page() {
     setLoadingMessage("Executing...");
     setLoading(true);
     try {
-      const response = await fetch('/api/map/save', {
+      const response = await fetch('/api/population/map/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -97,7 +97,7 @@ export default function Page() {
     try {
       // ① もし特定の都道府県画面（市区町村単位）を開いている場合
       if (loadedSelectedPref) {
-        const url = `/api/estat/population?level=muni&prefCode=${loadedSelectedPref}`;
+        const url = `/api/population/estat?level=muni&prefCode=${loadedSelectedPref}`;
         const res = await fetch(url);
         const data = await res.json();
 
@@ -113,7 +113,7 @@ export default function Page() {
       // ② 全国画面（都道府県＋一部市区町村）の場合
 
       // 2-1. 都道府県レベル人口（1回だけ）
-      const prefRes = await fetch(`/api/estat/population?level=pref`);
+      const prefRes = await fetch(`/api/population/estat?level=pref`);
       const prefData = await prefRes.json();
 
       const prefPopData = {};
@@ -133,7 +133,7 @@ export default function Page() {
 
       const muniPopData = {};
       for (const prefCode of muniPrefSet) {
-        const url = `/api/estat/population?level=muni&prefCode=${prefCode}`;
+        const url = `/api/population/estat?level=muni&prefCode=${prefCode}`;
         const res = await fetch(url);
         const data = await res.json();
 
@@ -158,7 +158,7 @@ export default function Page() {
     setLoadingMessage("Loading...");
     setLoading(true);
     try {
-      const response = await fetch('/api/map/load');
+      const response = await fetch('/api/population/map/load');
       const result = await response.json();
 
       if (result.success) {
@@ -202,7 +202,7 @@ export default function Page() {
     if (!populationData[code]) {
       try {
         const level = selectedPref ? "muni" : "pref";
-        const url = `/api/estat/population?level=${level}${selectedPref ? "&prefCode=" + selectedPref : ""}`;
+        const url = `/api/population/estat?level=${level}${selectedPref ? "&prefCode=" + selectedPref : ""}`;
         const res = await fetch(url);
         const data = await res.json();
 
@@ -262,7 +262,7 @@ export default function Page() {
       });
 
       try {
-        const url = `/api/estat/population?level=muni&prefCode=${prefCode}`;
+        const url = `/api/population/estat?level=muni&prefCode=${prefCode}`;
         const res = await fetch(url);
         const data = await res.json();
 

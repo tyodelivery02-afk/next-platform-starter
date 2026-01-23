@@ -300,15 +300,17 @@ export default function FCSTMakerPage() {
       : "bg-gradient-to-b from-sky-400 to-sky-800"
       }`}
     >
-      <h2 className="relative text-x2 font-bold text-black text-shadow">スーパーフォーキャストメーカー</h2>
-      <div
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="relative text-x2 font-bold text-black text-shadow">スーパーフォーキャストメーカー</h2>
+      </div>
+      {/* <div
         className="w-full h-6 my-6"
         style={{
           backgroundImage: "url(/images/divider.svg)",
           backgroundRepeat: "repeat-x",
           backgroundSize: "auto 35%",
         }}
-      ></div>
+      ></div> */}
 
       <div className="flex items-center justify-start gap-17">
         {/* エリア編集控件 */}
@@ -320,16 +322,13 @@ export default function FCSTMakerPage() {
           <AreaEditor mode={mode} />
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* 左侧文字 */}
+        {/* <div className="flex items-center gap-2">
           <span
             className={`font-bold ${mode === "朝" ? "text-black" : "text-white"
               }`}
           >
             その他ツール：
           </span>
-
-          {/* 右侧可点击图标 */}
           <Link
             href="https://mega.nz/folder/CQFTVK7J#NfZWDyg27yGLhJB4rAUdzg"
             target="_blank"
@@ -347,7 +346,7 @@ export default function FCSTMakerPage() {
               <path d="M224,64H176V56a24,24,0,0,0-24-24H104A24,24,0,0,0,80,56v8H32A16,16,0,0,0,16,80V192a16,16,0,0,0,16,16H224a16,16,0,0,0,16-16V80A16,16,0,0,0,224,64ZM96,56a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96ZM224,80v32H192v-8a8,8,0,0,0-16,0v8H80v-8a8,8,0,0,0-16,0v8H32V80Zm0,112H32V128H64v8a8,8,0,0,0,16,0v-8h96v8a8,8,0,0,0,16,0v-8h32v64Z"></path>
             </svg>
           </Link>
-        </div>
+        </div> */}
 
       </div>
 

@@ -209,9 +209,9 @@ export default function TaskCheckSheet() {
                   <td className="border border-white px-3 py-2">{task.job}</td>
                   <td className="border border-white px-3 py-2">
                     <select
-                      className={`w-full p-2 border rounded transition-colors duration-300 ${task.person === ""
-                        ? "bg-yellow-50 border-yellow-200"
-                        : "bg-sky-50 border-sky-200"
+                      className={`select-item ${task.person === ""
+                        ? "select-item-empty text-black "
+                        : "select-item-selected text-black"
                         }`}
                       value={task.person}
                       onChange={(e) => handlePersonChange(idx, e.target.value)}

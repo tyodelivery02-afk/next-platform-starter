@@ -51,7 +51,7 @@ export default function SheetsDisplayPage() {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const res = await fetch("/api/sheets/data");
+            const res = await fetch("/api/compensation/data");
             if (!res.ok) {
                 if (res.status === 429) {
                     throw new Error("API配額超限，請稍後再試");
@@ -333,7 +333,7 @@ export default function SheetsDisplayPage() {
                             ))}
                         </div>
                     </div>
-
+                    
                     {/* 担当 */}
                     <div>
                         <label className="block text-sm font-medium mb-2">担当</label>
@@ -360,8 +360,8 @@ export default function SheetsDisplayPage() {
                                             type="text"
                                             value={value}
                                             onChange={(e) => updateInput(tantoInputs, setTantoInputs, index, e.target.value)}
-                                            className="inputfile-item flex-1"
-                                            placeholder="担当者を入力"
+                                            className="input-item flex-1"
+                                            placeholder="担当者の入力"
                                         />
                                         {tantoInputs.length > 1 && (
                                             <button
@@ -385,34 +385,6 @@ export default function SheetsDisplayPage() {
                         )}
                     </div>
 
-                    {/* HOUSE番号 */}
-                    <div>
-                        <label className="block text-sm font-medium mb-2">HOUSE番号</label>
-                        <div className="space-y-2">
-                            <input
-                                type="text"
-                                value={houseNumbers}
-                                onChange={(e) => setHouseNumbers(e.target.value)}
-                                className="inputfile-item w-3/4"
-                                placeholder="カンマ区切りで複数検索"
-                            />
-                        </div>
-                    </div>
-
-                    {/* Ticket No */}
-                    <div>
-                        <label className="block text-sm font-medium mb-2">Ticket No</label>
-                        <div className="space-y-2">
-                            <input
-                                type="text"
-                                value={ticketNos}
-                                onChange={(e) => setTicketNos(e.target.value)}
-                                className="inputfile-item w-4/5"
-                                placeholder="カンマ区切りで複数検索"
-                            />
-                        </div>
-                    </div>
-
                     {/* Ticketタイプ */}
                     <div>
                         <label className="block text-sm font-medium mb-2">Ticketタイプ</label>
@@ -432,37 +404,17 @@ export default function SheetsDisplayPage() {
                         </div>
                     </div>
 
-                    {/* 理由 */}
+                    {/* HOUSE番号 */}
                     <div>
-                        <label className="block text-sm font-medium mb-2">理由</label>
+                        <label className="block text-sm font-medium mb-2">HOUSE番号</label>
                         <div className="space-y-2">
-                            {reasons.map((value, index) => (
-                                <div key={index} className="flex gap-2">
-                                    <input
-                                        type="text"
-                                        value={value}
-                                        onChange={(e) => updateInput(reasons, setReasons, index, e.target.value)}
-                                        className="inputfile-item flex-1"
-                                        placeholder="理由を入力"
-                                    />
-                                    {reasons.length > 1 && (
-                                        <button
-                                            onClick={() => removeInput(reasons, setReasons, index)}
-                                            className="minus-button"
-                                        >
-                                            <X size={20} weight="bold" />
-                                        </button>
-                                    )}
-                                    {index === reasons.length - 1 && (
-                                        <button
-                                            onClick={() => addInput(reasons, setReasons)}
-                                            className="plus-button"
-                                        >
-                                            <Plus size={20} weight="bold" />
-                                        </button>
-                                    )}
-                                </div>
-                            ))}
+                            <input
+                                type="text"
+                                value={houseNumbers}
+                                onChange={(e) => setHouseNumbers(e.target.value)}
+                                className="input-item flex-1 w-9/10"
+                                placeholder="カンマ区切りで複数検索"
+                            />
                         </div>
                     </div>
 
@@ -485,22 +437,16 @@ export default function SheetsDisplayPage() {
                         </div>
                     </div>
 
-                    {/* 記入時間 */}
+                    {/* Ticket No */}
                     <div>
-                        <label className="block text-sm font-medium mb-2">記入時間</label>
-                        <div className="flex gap-2 w-1/2">
+                        <label className="block text-sm font-medium mb-2">Ticket No</label>
+                        <div className="space-y-2">
                             <input
-                                type="date"
-                                value={startDate}
-                                onChange={(e) => setStartDate(e.target.value)}
-                                className="inputfile-item flex-1"
-                            />
-                            <span className="self-center">〜</span>
-                            <input
-                                type="date"
-                                value={endDate}
-                                onChange={(e) => setEndDate(e.target.value)}
-                                className="inputfile-item flex-1"
+                                type="text"
+                                value={ticketNos}
+                                onChange={(e) => setTicketNos(e.target.value)}
+                                className="input-item flex-1 w-9/10"
+                                placeholder="カンマ区切りで複数検索"
                             />
                         </div>
                     </div>
@@ -521,6 +467,60 @@ export default function SheetsDisplayPage() {
                                     {recorder}
                                 </button>
                             ))}
+                        </div>
+                    </div>
+                    
+                    {/* 理由 */}
+                    <div>
+                        <label className="block text-sm font-medium mb-2">理由</label>
+                        <div className="space-y-2">
+                            {reasons.map((value, index) => (
+                                <div key={index} className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        value={value}
+                                        onChange={(e) => updateInput(reasons, setReasons, index, e.target.value)}
+                                        className="input-item flex-1"
+                                        placeholder="理由の入力"
+                                    />
+                                    {reasons.length > 1 && (
+                                        <button
+                                            onClick={() => removeInput(reasons, setReasons, index)}
+                                            className="minus-button"
+                                        >
+                                            <X size={20} weight="bold" />
+                                        </button>
+                                    )}
+                                    {index === reasons.length - 1 && (
+                                        <button
+                                            onClick={() => addInput(reasons, setReasons)}
+                                            className="plus-button"
+                                        >
+                                            <Plus size={20} weight="bold" />
+                                        </button>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* 記入時間 */}
+                    <div>
+                        <label className="block text-sm font-medium mb-2">記入時間</label>
+                        <div className="flex gap-2 w-1/2">
+                            <input
+                                type="date"
+                                value={startDate}
+                                onChange={(e) => setStartDate(e.target.value)}
+                                className="input-item flex-1"
+                            />
+                            <span className="self-center">〜</span>
+                            <input
+                                type="date"
+                                value={endDate}
+                                onChange={(e) => setEndDate(e.target.value)}
+                                className="input-item flex-1"
+                            />
                         </div>
                     </div>
                 </div>

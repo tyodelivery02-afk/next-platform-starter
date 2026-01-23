@@ -169,10 +169,7 @@ export default function Home() {
                       value={item.content}
                       onChange={(e) => handleChange(index, e.target.value)}
                       placeholder={`通知 ${index + 1}`}
-                      className="w-full min-h-[100px] p-3 rounded-md bg-transparent text-black bg-yellow-200/60
-                                 placeholder-gray-400 border border-sky-200 focus:outline-none focus:ring-2 
-                                 focus:ring-yellow-400 font-medium resize-none transition-all duration-300 
-                                 hover:hover:scale-101"
+                      className="w-full min-h-[100px] p-3 textarea-item"
                     />
                   </div>
 

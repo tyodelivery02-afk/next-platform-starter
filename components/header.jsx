@@ -47,6 +47,10 @@ const menuIcons = [
     icon: "/images/newspaper.svg",
     href: "/monitor",
     label: "エゴサ",
+  }, {
+    icon: "/images/barcode.svg",
+    href: "/barcode",
+    label: "バーコード",
   },
 ];
 

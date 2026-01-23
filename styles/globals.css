@@ -215,6 +215,21 @@
         @apply border text-white border-white px-3 py-1.5 rounded-md text-sm cursor-pointer hover:border-yellow-200 hover:text-yellow-200 transition-all
     }
 
+    /* 共通 select 样式 */
+    .select-item {
+        @apply w-full p-2 border rounded transition-colors duration-300;
+    }
+
+    /* 未选择状态 select 样式  */
+    .select-item-empty {
+        @apply bg-yellow-50 border-yellow-200;
+    }
+
+    /* 已选择状态 select 样式  */
+    .select-item-selected {
+        @apply bg-sky-50 border-sky-200;
+    }
+
     /* 输入框组件 */
     .input-item {
         @apply border text-black border-black px-3 py-1.5 rounded-md text-sm bg-yellow-50 cursor-pointer hover:border-yellow-800 hover:text-yellow-800 disabled:bg-gray-200 disabled:text-gray-500 disabled:border-gray-300 transition-all
@@ -261,6 +276,11 @@
     /* clear按钮样式 */
     .clear-button {
         @apply px-4 py-2 rounded-lg bg-gray-400 hover:bg-gray-500 text-white font-semibold shadow-md hover:shadow-yellow-300 transition-all duration-300
+    }
+
+    /* 文本输入框样式 */
+    .textarea-item {
+        @apply rounded-md bg-transparent text-black bg-yellow-200/60 placeholder-gray-400 border border-sky-200 focus:outline-none focus:ring-2 focus:ring-yellow-400 font-medium resize-none transition-all duration-300 hover:hover:scale-101
     }
 
     /* === 文字阴影 === */
