@@ -37,6 +37,7 @@
         "npm:html2canvas@^1.4.1",
         "npm:jpn-atlas@^1.0.2",
         "npm:js-ini@^1.6.0",
+        "npm:jsbarcode@^3.12.3",
         "npm:lucide-react@0.555",
         "npm:markdown-to-jsx@^7.4.5",
         "npm:next@^16.0.8",

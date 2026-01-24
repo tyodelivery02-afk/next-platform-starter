@@ -95,7 +95,7 @@ export default function Page() {
     if (!loadedAreas || loadedAreas.length === 0) return;
 
     try {
-      // ① もし特定の都道府県画面（市区町村単位）を開いている場合
+      // もし特定の都道府県画面（市区町村単位）を開いている場合
       if (loadedSelectedPref) {
         const url = `/api/population/estat?level=muni&prefCode=${loadedSelectedPref}`;
         const res = await fetch(url);
@@ -355,7 +355,7 @@ export default function Page() {
     setColorStats(stats);
   }, [selectedAreas, populationData, prefMuniMapping, areaColors]);
 
-  const handleDownloadPNG = () => {
+  const handleDownloadSVG = () => {
     if (!mapGeoJSON || !mapGeoJSON.features || mapGeoJSON.features.length === 0) {
       warningRef.current?.open({ message: "地図データが読み込まれていません。少々お待ちください。" });
       return;
@@ -379,24 +379,28 @@ export default function Page() {
       }
     }
 
+    // 从GeoJSON中获取map_scale
+    const firstFeature = mapGeoJSON.features[0];
+    const mapScale = firstFeature?.properties?.map_scale || 2200;
+
     const width = 2600;
     const height = 2200;
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height + 100;
-    const ctx = canvas.getContext("2d");
-
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const padding = 100;
+    const svgWidth = width + padding * 2;
+    const svgHeight = height + padding * 2 + 100;
 
     const projection = geoMercator().fitSize([width, height], mapGeoJSON);
-    const pathGenerator = geoPath().projection(projection).context(ctx);
+    const pathGenerator = geoPath().projection(projection);
 
-    ctx.save();
-    ctx.translate(currentTransform.x * (width / 800), currentTransform.y * (height / 600));
-    ctx.scale(currentTransform.k, currentTransform.k);
+    // 计算SVG与显示的缩放比例差异
+    const svgScale = mapScale;
+    const pngScale = projection.scale();
+    const scaleRatio = pngScale / svgScale;
 
     const drawnNames = new Set();
+    let svgContent = '';
 
+    // 绘制所有区域
     mapGeoJSON.features.forEach((feature) => {
       let code, name;
 
@@ -435,52 +439,83 @@ export default function Page() {
         }
       }
 
-      ctx.beginPath();
-      pathGenerator(feature);
-      ctx.fillStyle = fillColor;
-      ctx.fill();
-      ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = 1.5 / currentTransform.k;
-      ctx.stroke();
+      const pathData = pathGenerator(feature);
+      if (pathData) {
+        svgContent += `<path d="${pathData}" fill="${fillColor}" stroke="#ffffff" stroke-width="${1.5 / currentTransform.k}" />`;
+      }
+    });
+
+    // 绘制所有文字
+    let textContent = '';
+    mapGeoJSON.features.forEach((feature) => {
+      let code, name;
+
+      if (!selectedPref) {
+        code = feature.properties.id;
+        name = feature.properties.nam_ja;
+      } else {
+        code = feature.properties.N03_007;
+        name = feature.properties.N03_004 ||
+          feature.properties.N03_003 ||
+          feature.properties.N03_002 ||
+          feature.properties.N03_001;
+      }
 
       if (name && !drawnNames.has(name)) {
         drawnNames.add(name);
         const centroid = pathGenerator.centroid(feature);
+
         if (centroid && !isNaN(centroid[0]) && !isNaN(centroid[1])) {
-          ctx.fillStyle = "#000000";
-          ctx.font = `${16 / currentTransform.k}px sans-serif`;
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-          ctx.fillText(name, centroid[0], centroid[1]);
+          const offsetX = feature.properties.label_offset_x || 0;
+          const offsetY = feature.properties.label_offset_y || 0;
+
+          const textX = centroid[0] + (offsetX * scaleRatio);
+          const textY = centroid[1] + (offsetY * scaleRatio);
+
+          textContent += `<text x="${textX}" y="${textY}" 
+          font-size="${16 / currentTransform.k}" 
+          font-family="sans-serif" 
+          text-anchor="middle" 
+          dominant-baseline="middle" 
+          fill="#000000">${name}</text>`;
         }
       }
     });
 
-    ctx.restore();
+    // 统计信息
+    const statsY = height + padding * 2 + 35;
+    const statsContent = `
+    <text x="${svgWidth / 2}" y="${statsY}" 
+      font-size="28" font-weight="bold" font-family="sans-serif" 
+      text-anchor="middle" fill="#000000">
+      総人口: ${totalPopulation.toLocaleString()}人
+    </text>
+    <text x="${svgWidth / 2}" y="${statsY + 35}" 
+      font-size="28" font-weight="bold" font-family="sans-serif" 
+      text-anchor="middle" fill="#000000">
+      全国人口の約 ${populationRatio}%
+    </text>
+  `;
 
-    ctx.fillStyle = "#000000";
-    ctx.font = "bold 28px sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText(
-      `総人口: ${totalPopulation.toLocaleString()}人`,
-      width / 2,
-      height + 35
-    );
-    ctx.fillText(
-      `全国人口の約 ${populationRatio}%`,
-      width / 2,
-      height + 70
-    );
+    // 组合完整的SVG
+    const fullSvg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${svgWidth}" height="${svgHeight}" viewBox="0 0 ${svgWidth} ${svgHeight}">
+  <g transform="translate(${padding + currentTransform.x * (width / 800)}, ${padding + currentTransform.y * (height / 600)}) scale(${currentTransform.k})">
+    ${svgContent}
+    ${textContent}
+  </g>
+  ${statsContent}
+</svg>`;
 
-    canvas.toBlob((blob) => {
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      const mapType = selectedPref ? `pref_${selectedPref}` : "national";
-      link.download = `population_map_${mapType}_${new Date().toISOString().slice(0, 10)}.png`;
-      link.click();
-      URL.revokeObjectURL(url);
-    }, "image/png");
+    // 下载SVG文件
+    const blob = new Blob([fullSvg], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    const mapType = selectedPref ? `pref_${selectedPref}` : "national";
+    link.download = `population_map_${mapType}_${new Date().toISOString().slice(0, 10)}.svg`;
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   useEffect(() => {
@@ -650,10 +685,10 @@ export default function Page() {
                 ? "bg-yellow-600 hover:bg-yellow-700"
                 : "bg-gray-400 cursor-not-allowed"
                 }`}
-              onClick={handleDownloadPNG}
+              onClick={handleDownloadSVG}
               disabled={!mapGeoJSON}
             >
-              PNG出力
+              SVG出力
             </button>
           </div>
         </details>
