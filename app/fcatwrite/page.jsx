@@ -325,15 +325,15 @@ export default function ForecastInputPage() {
                 </div>
 
                 <div className="flex justify-end gap-2 mt-4">
+                    <button onClick={handleClearForecast} className="clear-button">
+                        クリア
+                    </button>
                     <ConfirmModal
                         onConfirm={handleSaveForecast}
                         buttonText="保存"
                         message="保存しますか？"
                         buttonColor="save-button"
                     />
-                    <button onClick={handleClearForecast} className="clear-button">
-                        クリア
-                    </button>
                 </div>
             </div>
 

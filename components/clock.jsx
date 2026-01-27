@@ -1,7 +1,5 @@
 "use client";
 import { useState, useEffect } from "react";
-import Clock from "react-clock";
-import "react-clock/dist/Clock.css";
 
 export default function TimeClock() {
   const [value, setValue] = useState(new Date());
@@ -13,20 +11,18 @@ export default function TimeClock() {
 
   return (
     <div className="flex flex-col items-center justify-center">
-      <Clock
-        value={value}
-        renderNumbers={false}
-        hourHandWidth={3}
-        minuteHandWidth={2}
-        secondHandWidth={1}
-        size={80}
-      />
-      <div className="text-black font-serif mt-4 text-xl tracking-wider">
+      <div className="text-orange-400 font-semibold font-serif mt-4 text-xl tracking-wider">
         {value.toLocaleDateString("ja-JP", {
           month: "2-digit",
-        })}
-        {value.toLocaleDateString("ja-JP", {
           day: "2-digit",
+        })}
+      </div>
+      <div className="text-orange-400 font-semibold font-serif text-2xl tracking-wider inline-block min-w-[120px] text-center">
+        {value.toLocaleTimeString("ja-JP", {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          hour12: false,
         })}
       </div>
     </div>

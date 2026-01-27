@@ -74,6 +74,7 @@ export default function MonitorPage() {
                     >
                         エゴサ
                     </button>
+                        {itemTotal} 件記事
                     <div className="flex flex-col mr-30 ml-auto">
                         <p className="text-xl font-medium">je ne vois que d’un point, mais dans mon existence je suis regardé de partout.</p>
                         <p className="font-medium">- I see only from one point, but in my existence I am looked from everywhere. -</p>
@@ -114,11 +115,8 @@ export default function MonitorPage() {
                 )}
             </div>
 
-            <div className="table-div">
+            <div className="mt-10">
                 {/* 数据列表 */}
-                <div className="mb-4 text-sm">
-                    {itemTotal} 件の記事
-                </div>
                 <ul className="space-y-4">
                     {items.map(item => (
                         <li

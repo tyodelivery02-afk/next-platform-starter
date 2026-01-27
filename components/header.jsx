@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { House, Calendar, CheckSquare, Pen, Headset, PersonSimpleWalk, CurrencyJpy, Cat, List, X, } from "phosphor-react";
+import { House, Calendar, CheckSquare, Pen, Headset, PersonSimpleWalk, Ticket, Cat, List, X, } from "phosphor-react";
 import TimeClock from "components/clock";
 import Image from 'next/image';
 
@@ -23,7 +23,7 @@ const navItems = [
     label: `桃カゴ`,
   },
   { icon: <Headset size={28} />, href: "/complaints", label: `メール＆トレロ` },
-  { icon: <CurrencyJpy size={28} />, href: "/compensation", label: `チケット関連` },
+  { icon: <Ticket size={28} />, href: "/compensation", label: `チケット関連` },
   { icon: <PersonSimpleWalk size={28} />, href: "/fuzaihyou", label: `不在票管理` },
   { icon: <Cat size={28} />, href: "/yamatocsv", label: `ヤマト予定確定データ` },
 ];
@@ -102,12 +102,12 @@ export function Header() {
           <TimeClock />
 
           {/* 右侧：頂部菜单 */}
-          <div className="ml-6 flex-1">
+          <div className="ml-3 flex-1">
             <table className="w-full border-collapse">
               <tbody>
                 <tr>
                   {menuIcons.map((item, idx) => (
-                    <td key={idx} className="text-center p-2">
+                    <td key={idx} className="text-center">
                       <Link
                         href={item.href}
                         onClick={() => setMenuOpen(false)}

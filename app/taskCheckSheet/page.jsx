@@ -166,7 +166,7 @@ export default function TaskCheckSheet() {
     <div className="bg-style">
       <div className="flex justify-between items-center mb-6">
         <h2 className="relative text-x2 font-bold text-black text-shadow">
-          一日のタスク担当者チェックシート
+          一日のタスク
         </h2>
       </div>
 
