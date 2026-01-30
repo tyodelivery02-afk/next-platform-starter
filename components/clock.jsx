@@ -11,13 +11,13 @@ export default function TimeClock() {
 
   return (
     <div className="flex flex-col items-center justify-center">
-      <div className="text-orange-400 font-semibold font-serif mt-4 text-xl tracking-wider">
+      <div className="text-orange-400 text-shadow font-semibold font-serif mt-4 text-xl tracking-wider div-hover">
         {value.toLocaleDateString("ja-JP", {
           month: "2-digit",
           day: "2-digit",
         })}
       </div>
-      <div className="text-orange-400 font-semibold font-serif text-2xl tracking-wider inline-block min-w-[120px] text-center">
+      <div className="text-orange-400 text-shadow font-semibold font-serif text-2xl tracking-wider inline-block min-w-[120px] text-center div-hover">
         {value.toLocaleTimeString("ja-JP", {
           hour: "2-digit",
           minute: "2-digit",

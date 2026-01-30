@@ -180,6 +180,11 @@
         @apply hover:bg-yellow-200 transition-all duration-300
     }
 
+    /* div悬浮时样式 */
+    .div-hover {
+        @apply  hover:bg-yellow-200 hover:scale-[1.05]  hover:rounded-md transition-all duration-300 
+    }
+
     /* 表格div样式 */
     .table-div {
         @apply rounded-2xl shadow-lg p-4 bg-sky-50/70 border border-black backdrop-blur-sm hover:shadow-yellow-200 transition-all duration-300

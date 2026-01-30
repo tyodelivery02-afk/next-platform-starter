@@ -6,6 +6,7 @@ import LoadingModal from "components/loading";
 import { companies, SPGList } from 'app/config/config';
 import { Plus, X } from "phosphor-react";
 import { Pie } from "react-chartjs-2";
+import Jump from "components/jump";
 import {
     Chart as ChartJS,
     ArcElement,
@@ -306,10 +307,13 @@ export default function SheetsDisplayPage() {
 
     return (
         <div className="bg-style">
-            <div className="flex justify-between items-center mb-6">
-                <h2 className="relative text-x2 font-bold text-black text-shadow">
+            <div className="flex flex-nowrap justify-between items-center mb-6 gap-4">
+                <h2 className="relative text-x2 font-bold text-black text-shadow whitespace-nowrap flex-shrink-0">
                     チケット関連
                 </h2>
+                <div className="flex-1 min-w-0">
+                    <Jump />
+                </div>
             </div>
 
             {/* 検索フォーム */}
@@ -333,7 +337,7 @@ export default function SheetsDisplayPage() {
                             ))}
                         </div>
                     </div>
-                    
+
                     {/* 担当 */}
                     <div>
                         <label className="block text-sm font-medium mb-2">担当</label>
@@ -469,7 +473,7 @@ export default function SheetsDisplayPage() {
                             ))}
                         </div>
                     </div>
-                    
+
                     {/* 理由 */}
                     <div>
                         <label className="block text-sm font-medium mb-2">理由</label>

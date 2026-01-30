@@ -8,7 +8,7 @@ import { validSources } from 'app/config/config';
 import WarningModal from "components/warning";
 import AreaEditor from "components/areaSearch";
 import LoadingModal from "components/loading";
-import Link from 'next/link';
+import Jump from "components/jump";
 
 export default function FCSTMakerPage() {
   const [rows, setRows] = useState([]); // 朝/夜筛选后的结果
@@ -300,17 +300,14 @@ export default function FCSTMakerPage() {
       : "bg-gradient-to-b from-sky-400 to-sky-800"
       }`}
     >
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="relative text-x2 font-bold text-black text-shadow">スーパーフォーキャストメーカー</h2>
+      <div className="flex flex-nowrap justify-between items-center mb-6 gap-4">
+        <h2 className="relative text-x2 font-bold text-black text-shadow whitespace-nowrap flex-shrink-0">
+          スーパーフォーキャストメーカー
+        </h2>
+        <div className="flex-1 min-w-0">
+          <Jump />
+        </div>
       </div>
-      {/* <div
-        className="w-full h-6 my-6"
-        style={{
-          backgroundImage: "url(/images/divider.svg)",
-          backgroundRepeat: "repeat-x",
-          backgroundSize: "auto 35%",
-        }}
-      ></div> */}
 
       <div className="flex items-center justify-start gap-17">
         {/* エリア編集控件 */}
