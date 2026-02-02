@@ -78,7 +78,7 @@ const BarcodeGenerator = () => {
     const renderBarcode = (barcode, index) => (
         <div
             key={index}
-            className="relative p-6 rounded-lg border-2 bg-white border-gray-200 table-details"
+            className="relative p-6 rounded-lg border-2 bg-white border-gray-200 table-details min-w-70"
             style={{ marginBottom: spacing }}
         >
             <div className="flex flex-col items-center">

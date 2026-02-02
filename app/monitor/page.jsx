@@ -98,9 +98,6 @@ export default function MonitorPage() {
 
                         {result.errors && result.errors.length > 0 && (
                             <div className="mt-2">
-                                <p className="font-semibold text-sm mb-1">
-                                    遇到的问题：
-                                </p>
                                 <ul className="text-sm space-y-1">
                                     {result.errors.map((err, idx) => (
                                         <li key={idx}>
