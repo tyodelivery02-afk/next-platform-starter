@@ -178,7 +178,7 @@ export default function Home() {
                     <button
                       onClick={() => handleSaveOne(index)}
                       disabled={isSaving || !item.content.trim()}
-                      className="text-sky-600 hover:text-sky-800 rounded p-1 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="floppyDisk-button"
                       title="保存"
                     >
                       <FloppyDisk size={20} weight="bold" />
@@ -187,7 +187,7 @@ export default function Home() {
                     <button
                       onClick={() => handleDeleteOne(index)}
                       disabled={isDeleting}
-                      className="text-yellow-600 hover:text-yellow-800 rounded p-1 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="x-button"
                       title="削除"
                     >
                       <X size={20} weight="bold" />

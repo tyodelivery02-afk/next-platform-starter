@@ -78,7 +78,7 @@ const BarcodeGenerator = () => {
     const renderBarcode = (barcode, index) => (
         <div
             key={index}
-            className="relative p-6 rounded-lg border-2 bg-white border-gray-200 table-details min-w-70"
+            className="relative p-6 rounded-lg border-2 bg-white border-gray-200 table-details w-fit"
             style={{ marginBottom: spacing }}
         >
             <div className="flex flex-col items-center">
@@ -206,7 +206,7 @@ const BarcodeGenerator = () => {
                         </div>
                     ) : (
                         <div className="h-full flex flex-col items-center justify-center">
-                            <div className="max-w-2xl w-full">
+                            <div className="flex items-center gap-4 mt-8">
                                 {renderBarcode(barcodes[currentIndex], currentIndex)}
                             </div>
                             <div className="flex items-center gap-4 mt-8">

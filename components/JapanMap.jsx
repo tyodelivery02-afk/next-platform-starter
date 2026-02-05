@@ -6,14 +6,14 @@ import { select } from "d3-selection";
 import { zoom } from "d3-zoom";
 import { geoCentroid } from "d3-geo";
 
-export default function JapanMap({ 
-  selectedAreas, 
-  onSelect, 
-  isPrefectureSelected, 
+export default function JapanMap({
+  selectedAreas,
+  onSelect,
+  isPrefectureSelected,
   getPrefectureColor,
   areaColors,
   colorPalette,
-  onLoad 
+  onLoad
 }) {
   const svgRef = useRef(null);
   const [transform, setTransform] = useState({ k: 1, x: 0, y: 0 });
@@ -57,7 +57,7 @@ export default function JapanMap({
                   type: "FeatureCollection",
                   features: geographies
                 };
-                
+
                 setTimeout(() => {
                   setIsDataLoaded(true);
                   if (onLoad) {
@@ -73,11 +73,11 @@ export default function JapanMap({
                     const name = geo.properties.nam_ja;
                     const prefCode = code.substring(0, 2);
                     const isSelected = isPrefectureSelected(prefCode);
-                    
+
                     // 获取该都道府県的颜色
                     const colorId = getPrefectureColor(prefCode);
                     let fillColor = "#60a5fa"; // 默认蓝色
-                    
+
                     if (isSelected) {
                       if (colorId && colorId !== "mixed") {
                         fillColor = colorPalette[colorId];
@@ -110,7 +110,7 @@ export default function JapanMap({
                         x={px}
                         y={py}
                         textAnchor="middle"
-                        fontSize={6 / transform.k}
+                        fontSize={Math.max(7 / transform.k, 3)}
                         fill="#000"
                         pointerEvents="none"
                       >

@@ -122,7 +122,7 @@ export default function PrefectureMap({
                   if (loadedPrefCodeRef.current === prefCode) {
                     setIsDataLoaded(true); // 触发副作用中的 setMapConfig
                     if (onLoad) {
-                      console.log("県地図数据读取完成:", prefCode);
+                      console.log("県地図読込完成:", prefCode);
                       onLoad(geoJSON);
                     }
                   }
@@ -191,7 +191,7 @@ export default function PrefectureMap({
                     x={centroid[0] + offsetX}
                     y={centroid[1] + offsetY}
                     textAnchor="middle"
-                    fontSize={6 / transform.k}
+                    fontSize={Math.max(7 / transform.k, 3)}
                     fill="#111"
                     pointerEvents="none"
                     style={{ userSelect: "none" }}

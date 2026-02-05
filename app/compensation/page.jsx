@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import WarningModal from "components/warning";
 import LoadingModal from "components/loading";
 import { companies, SPGList } from 'app/config/config';
-import { Plus, X } from "phosphor-react";
+import { Plus, X, Download } from "phosphor-react";
 import { Pie } from "react-chartjs-2";
 import Jump from "components/jump";
 import {
@@ -14,6 +14,7 @@ import {
     Legend
 } from "chart.js";
 import ChartDataLabels from 'chartjs-plugin-datalabels';
+import * as XLSX from "xlsx";
 
 ChartJS.register(ArcElement, Tooltip, Legend, ChartDataLabels);
 
@@ -207,6 +208,17 @@ export default function SheetsDisplayPage() {
         const newArray = [...array];
         newArray[index] = value;
         setArray(newArray);
+    };
+
+    // Excel ダウンロード
+    const downloadExcel = () => {
+        const headers = ["配送業者", "担当", "HOUSE番号", "TicketNo", "理由", "結果", "記入時間", "記入者"];
+        const rows = filteredData.map(item => headers.map(h => item[h] ?? ""));
+        const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+        ws["!cols"] = headers.map(() => ({ wch: 15 }));
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "チケット関連");
+        XLSX.writeFile(wb, `チケット関連_${filteredData.length}件.xlsx`);
     };
 
     // 円グラフデータ生成
@@ -526,6 +538,13 @@ export default function SheetsDisplayPage() {
                                 className="input-item flex-1"
                             />
                         </div>
+                    </div>
+                    <div className="flex justify-end px-3 pt-3">
+                        <button
+                            onClick={downloadExcel}
+                            className="orther-button">
+                            Excel出力
+                        </button>
                     </div>
                 </div>
             </div>

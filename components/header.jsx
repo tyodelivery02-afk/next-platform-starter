@@ -25,7 +25,7 @@ const navItems = [
   { icon: <Headset size={28} />, href: "/complaints", label: `メール＆トレロ` },
   { icon: <Ticket size={28} />, href: "/compensation", label: `チケット関連` },
   { icon: <PersonSimpleWalk size={28} />, href: "/fuzaihyou", label: `不在票管理` },
-  { icon: <Cat size={28} />, href: "/yamatocsv", label: `ヤマト予定確定データ` },
+  { icon: <Cat size={28} />, href: "/yamatocsv", label: `ヤマト/佐川チェンジ` },
 ];
 
 {/* 顶部菜单按钮 */ }
