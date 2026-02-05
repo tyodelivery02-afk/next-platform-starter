@@ -17,7 +17,7 @@ export async function POST(request) {
     const clientId = process.env.GOOGLE_CLIENT_ID;
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
     const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
-    const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${process.env.NEXT_PUBLIC_BASE_URL}/api/google-drive/callback`;
+    const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${process.env.BASE_URL2}/api/google-drive/callback`;
 
     if (!clientId || !clientSecret || !refreshToken) {
       return NextResponse.json(

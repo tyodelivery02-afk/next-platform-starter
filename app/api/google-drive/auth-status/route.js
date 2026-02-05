@@ -6,7 +6,7 @@ export async function GET(request) {
     // 从环境变量获取凭证
     const clientId = process.env.GOOGLE_CLIENT_ID;
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-    const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${process.env.NEXT_PUBLIC_BASE_URL}/api/google-drive/callback`;
+    const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${process.env.BASE_URL2}/api/google-drive/callback`;
 
     if (!clientId || !clientSecret) {
       return NextResponse.json(
