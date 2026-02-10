@@ -27,6 +27,7 @@
         "npm:d3-selection@3",
         "npm:d3-zoom@3",
         "npm:dayjs@^1.11.18",
+        "npm:encoding-japanese@^2.2.0",
         "npm:eslint-config-next@15.5.4",
         "npm:eslint@8.57.1",
         "npm:exceljs@^4.4.0",
