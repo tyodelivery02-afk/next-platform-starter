@@ -4,9 +4,11 @@ import { ComposableMap, Geographies, Geography } from "react-simple-maps";
 import { select } from "d3-selection";
 import { zoom } from "d3-zoom";
 import { geoPath } from "d3-geo";
+import ZipcodeTooltip from "./ZipcodeTooltip";
 
 export default function PrefectureMap({
   prefCode,
+  prefName, // 新增：都道府县名称
   selectedAreas,
   areaColors,
   colorPalette,
@@ -22,7 +24,12 @@ export default function PrefectureMap({
   });
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const loadedPrefCodeRef = useRef(null);
-  const pendingConfigRef = useRef(null); // 用于暂存从JSON读取的配置
+  const pendingConfigRef = useRef(null);
+
+  // 邮编tooltip相关状态
+  const [hoveredArea, setHoveredArea] = useState(null);
+  const [tooltipPosition, setTooltipPosition] = useState(null);
+  const hoverTimeoutRef = useRef(null);
 
   // 切换县级地图时重置 transform 和数据加载状态
   useEffect(() => {
@@ -30,13 +37,16 @@ export default function PrefectureMap({
     setIsDataLoaded(false);
     loadedPrefCodeRef.current = null;
     setMapConfig({ scale: 2200, center: [139.7, 35.7] });
+    // 清除tooltip
+    setHoveredArea(null);
+    setTooltipPosition(null);
   }, [prefCode]);
 
-  // 专门处理配置更新的 Effect，修复 "Cannot update a component while rendering" 报错
+  // 专门处理配置更新的 Effect
   useEffect(() => {
     if (isDataLoaded && pendingConfigRef.current) {
       setMapConfig(pendingConfigRef.current);
-      pendingConfigRef.current = null; // 处理完后清空
+      pendingConfigRef.current = null;
     }
   }, [isDataLoaded]);
 
@@ -48,6 +58,51 @@ export default function PrefectureMap({
       .on("zoom", (event) => setTransform(event.transform));
     svg.call(zoomBehavior);
   }, [prefCode]);
+
+  // 清理timeout
+  useEffect(() => {
+    return () => {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // 处理鼠标进入区域
+  const handleMouseEnter = (event, areaName, areaCode) => {
+    // 清除之前的timeout
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+    }
+
+    // 延迟显示tooltip，避免快速移动时频繁触发
+    hoverTimeoutRef.current = setTimeout(() => {
+      const rect = event.target.getBoundingClientRect();
+      setTooltipPosition({
+        x: event.clientX,
+        y: event.clientY,
+      });
+      setHoveredArea({
+        name: areaName,
+        code: areaCode,
+        prefName: prefName || "", // 传递都道府县名
+      });
+    }, 300); // 300ms延迟
+  };
+
+  // 处理鼠标离开区域
+  const handleMouseLeave = () => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+    }
+    // 不立即关闭tooltip，让用户可以移动到tooltip上
+  };
+
+  // 关闭tooltip
+  const handleCloseTooltip = () => {
+    setHoveredArea(null);
+    setTooltipPosition(null);
+  };
 
   // 放大/缩小按钮
   const handleZoomIn = () => setTransform((t) => ({ ...t, k: Math.min(t.k + 0.2, 10) }));
@@ -106,7 +161,6 @@ export default function PrefectureMap({
                   const customScale = firstGeo.properties.map_scale;
                   const customCenter = firstGeo.properties.map_center;
 
-                  // 存入 Ref 而不是在此直接 setState
                   if (customScale || customCenter) {
                     pendingConfigRef.current = {
                       scale: Number(customScale) || 2200,
@@ -120,7 +174,7 @@ export default function PrefectureMap({
 
                 setTimeout(() => {
                   if (loadedPrefCodeRef.current === prefCode) {
-                    setIsDataLoaded(true); // 触发副作用中的 setMapConfig
+                    setIsDataLoaded(true);
                     if (onLoad) {
                       console.log("県地図読込完成:", prefCode);
                       onLoad(geoJSON);
@@ -153,6 +207,8 @@ export default function PrefectureMap({
                     key={geo.rsmKey}
                     geography={geo}
                     onClick={() => onSelect(code, name)}
+                    onMouseEnter={(event) => handleMouseEnter(event, name, code)}
+                    onMouseLeave={handleMouseLeave}
                     style={{
                       default: {
                         fill: fillColor,
@@ -211,6 +267,16 @@ export default function PrefectureMap({
           </Geographies>
         </g>
       </ComposableMap>
+
+      {/* 邮编信息Tooltip */}
+      {hoveredArea && tooltipPosition && (
+        <ZipcodeTooltip
+          areaName={hoveredArea.name}
+          prefName={hoveredArea.prefName}
+          position={tooltipPosition}
+          onClose={handleCloseTooltip}
+        />
+      )}
     </div>
   );
 }

@@ -56,6 +56,12 @@ export default function Page() {
     color10: "#A3CB38",
   };
 
+  const getSelectedPrefName = () => {
+    if (!selectedPref) return null;
+    const pref = prefectures.find(p => p.code === selectedPref);
+    return pref ? pref.name : null;
+  };
+
   // 保存地图
   const handleSaveMap = async () => {
     setLoadingMessage("Executing...");
@@ -568,6 +574,7 @@ export default function Page() {
             <PrefectureMap
               key={selectedPref}
               prefCode={selectedPref}
+              prefName={getSelectedPrefName()}
               selectedAreas={selectedAreas}
               areaColors={areaColors}
               colorPalette={colorPalette}
