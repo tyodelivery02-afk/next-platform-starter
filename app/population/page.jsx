@@ -8,6 +8,8 @@ import ConfirmModal from "components/confirm";
 import LoadingModal from "components/loading";
 import { prefectures } from "app/config/config";
 import { geoPath, geoMercator } from "d3-geo";
+import SaveVersionModal from "components/saveVersionModal";
+import { TrashSimple, CloudArrowDown } from "phosphor-react";
 
 export default function Page() {
   const [selectedAreas, setSelectedAreas] = useState([]);
@@ -42,6 +44,12 @@ export default function Page() {
   // 保存/加载相关状态
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState("Loading...");
+  // 版本管理相关状态
+  const [versions, setVersions] = useState([]);
+  const [showVersionNameModal, setShowVersionNameModal] = useState(false);
+  const [versionName, setVersionName] = useState("");
+  const [currentVersionId, setCurrentVersionId] = useState(null); // 当前编辑的版本ID
+  const [currentVersionName, setCurrentVersionName] = useState(""); // 当前版本名称
 
   const colorPalette = {
     color1: "#FF5733",
@@ -64,13 +72,23 @@ export default function Page() {
 
   // 保存地图
   const handleSaveMap = async () => {
-    setLoadingMessage("Executing...");
+    // 如果是新版本（currentVersionId === null），弹出输入框
+    if (currentVersionId === null) {
+      setVersionName(`バージョン${new Date().toLocaleString('ja-JP')}`);
+      setShowVersionNameModal(true);
+      return;
+    }
+
+    // 如果是已存在的版本，直接覆盖保存
+    setLoadingMessage("保存中...");
     setLoading(true);
     try {
       const response = await fetch('/api/population/map/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          versionId: currentVersionId,  // 传入版本ID
+          versionName: currentVersionName, // 保持原名称
           selectedAreas,
           areaColors,
           colorNames,
@@ -82,13 +100,12 @@ export default function Page() {
       const result = await response.json();
 
       if (result.success) {
+        await loadVersions();
         alertRef.current?.open({ message: "保存成功！" });
       } else {
-        alertRef.current?.open({ message: "保存失敗！" });
         warningRef.current?.open({ message: `保存失敗: ${result.error}` });
       }
     } catch (error) {
-      alertRef.current?.open({ message: "保存失敗！" });
       warningRef.current?.open({ message: '保存失敗:', error });
     } finally {
       setLoading(false);
@@ -188,6 +205,144 @@ export default function Page() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // 加载版本列表
+  const loadVersions = async () => {
+    try {
+      const response = await fetch('/api/population/map/versions/list');
+      const result = await response.json();
+      if (result.success) {
+        setVersions(result.versions);
+      }
+    } catch (error) {
+      warningRef?.current?.open({ message: "バージョン読み込み失敗:", error });
+    }
+  };
+
+  // 加载指定版本
+  const handleLoadVersion = async (versionId, versionName) => {
+    setLoadingMessage("Loading...");
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/population/map/load?versionId=${versionId}`);
+      const result = await response.json();
+
+      if (result.success) {
+        const { data } = result;
+        setSelectedAreas(data.selectedAreas);
+        setAreaColors(data.areaColors);
+        setColorNames({
+          color1: "オレンジレッド",
+          color2: "エメラルドグリーン",
+          color3: "イエロー",
+          color4: "パープル",
+          color5: "ローズピンク",
+          color6: "オレンジイエロー",
+          color7: "ダークグレー",
+          color8: "オレンジ",
+          color9: "ダークレッド",
+          color10: "ライトグラスグリーン",
+          ...data.colorNames
+        });
+        setSelectedPref(data.selectedPref);
+        setPrefMuniMapping(data.prefMuniMapping);
+        await reloadPopulationAfterLoad(data.selectedAreas || [], data.selectedPref || null);
+
+        // 设置当前版本信息
+        setCurrentVersionId(versionId);
+        setCurrentVersionName(versionName);
+
+        alertRef.current?.open({ message: "バージョンを読み込みました" });
+      } else {
+        warningRef?.current?.open({ message: `読み込み失敗: ${result.error}` });
+      }
+    } catch (error) {
+      warningRef?.current?.open({ message: "読み込み失敗:", error });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 删除版本
+  const handleDeleteVersion = async (versionId) => {
+    try {
+      const response = await fetch(`/api/population/map/versions/delete?versionId=${versionId}`, {
+        method: 'DELETE'
+      });
+      const result = await response.json();
+      if (result.success) {
+        await loadVersions();
+      } else {
+        warningRef?.current?.open({ message: `削除失敗: ${result.error}` });
+      }
+    } catch (error) {
+      warningRef?.current?.open({ message: "削除失敗:", error });
+    }
+  };
+
+  // 新版本开始
+  const handleNewVersion = () => {
+    setSelectedAreas([]);
+    setAreaColors({});
+    setPopulationData({});
+    setTotalPopulation(0);
+    setSelectedPref(null);
+    setPrefMuniMapping({});
+    setColorStats({});
+    setCurrentVersionId(null); // 清空当前版本ID
+    setCurrentVersionName(""); // 清空当前版本名称
+    alertRef.current?.open({ message: "新しいバージョンを開始しました" });
+  };
+
+  // 保存新版本
+  const handleSaveAsNewVersion = async () => {
+    if (!versionName.trim()) return;
+
+    setLoadingMessage("保存中...");
+    setLoading(true);
+    try {
+      const response = await fetch('/api/population/map/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          versionName: versionName.trim(),
+          selectedAreas,
+          areaColors,
+          colorNames,
+          selectedPref,
+          prefMuniMapping
+        })
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        setShowVersionNameModal(false);
+        setVersionName("");
+        setCurrentVersionId(result.versionId); // 设置当前版本ID
+        setCurrentVersionName(versionName.trim()); // 设置当前版本名称
+        await loadVersions();
+        alertRef.current?.open({ message: "保存成功！" });
+      } else {
+        warningRef?.current?.open({ message: `保存失敗: ${result.error}` });
+      }
+    } catch (error) {
+      warningRef?.current?.open({ message: '保存失敗:', error });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 格式化日期
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleString('ja-JP', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   const handleSelect = async (code, name) => {
@@ -556,6 +711,10 @@ export default function Page() {
     handleLoadMap();
   }, []);
 
+  useEffect(() => {
+    loadVersions();
+  }, []);
+
   return (
     <div ref={exportRef} className="flex md:flex-row h-screen bg-style overflow-hidden p-4 md:p-6 gap-4">
       <div className="h-full flex-1 table-details border-black">
@@ -615,6 +774,63 @@ export default function Page() {
           </div>
         </details>
 
+        {/* 版本管理 */}
+        <details className="table-details">
+          <summary className="table-details-content">
+            保存したバージョン ({versions.length}/50)
+          </summary>
+
+          <ul className="mr-2 ml-1 mt-2 mb-2 space-y-2 max-h-[56vh] overflow-y-auto">
+            {versions.length === 0 && (
+              <li className="w-full text-center py-4 text-gray-500">
+                保存されたバージョンはありません
+              </li>
+            )}
+
+            {versions.map((version) => (
+              <li key={version.id}>
+                <div
+                  className="w-full px-3 py-2 rounded-lg border border-sky-100 bg-yellow-100 
+                     transition-all duration-300 hover:bg-yellow-200 hover:shadow-sm"
+                >
+                  {/* 第一行：名称 + 图标横向排列 */}
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-sm text-gray-800 truncate">
+                      {version.name}
+                    </span>
+
+                    <div className="flex gap-2 flex-shrink-0">
+                      <button
+                        onClick={() =>
+                          handleLoadVersion(version.id, version.name)
+                        }
+                        className="floppyDisk-button"
+                      >
+                        <CloudArrowDown size={20} weight="bold" />
+                      </button>
+
+                      <ConfirmModal
+                        onConfirm={() =>
+                          handleDeleteVersion(version.id)
+                        }
+                        buttonText={<TrashSimple size={20} />}
+                        message={`「${version.name}」を削除しますか？`}
+                        buttonColor="minus-button"
+                      />
+                    </div>
+                  </div>
+
+                  {/* 第二行：日期 */}
+                  <p className="text-xs text-gray-500 mt-1">
+                    {formatDate(version.createdAt)}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </details>
+
+
         <details className="table-details mb-2">
           <summary className="table-details-content">塗りつぶし</summary>
           <div className="mb-4 p-3">
@@ -635,7 +851,7 @@ export default function Page() {
               <label className="text-xs text-gray-600">名前をカスタマイズ：</label>
               <input
                 type="text"
-                value={colorNames[currentColor]}
+                value={colorNames[currentColor] || ""}
                 onChange={(e) => setColorNames(prev => ({ ...prev, [currentColor]: e.target.value }))}
                 className="w-full mt-1 px-2 py-1 text-sm border border-gray-300 rounded"
               />
@@ -681,12 +897,18 @@ export default function Page() {
           <div className="p-3 flex flex-wrap gap-2">
             <ConfirmModal
               onConfirm={handleSaveMap}
-              buttonText="保存"
-              message="保存しますか"
+              buttonText={currentVersionId === null ? "保存" : `保存 (${currentVersionName})`}
+              message={currentVersionId === null ? "新しいバージョンとして保存しますか" : `「${currentVersionName}」を上書き保存しますか？`}
               buttonColor="save-button"
             />
 
-            {/* PNG 导出 */}
+            <ConfirmModal
+              onConfirm={handleNewVersion}
+              buttonText="新規バージョン"
+              message="現在の塗りつぶし情報をクリアして新しいバージョンを開始しますか？"
+              buttonColor="orther-button"
+            />
+
             <button
               className={`orther-button ${mapGeoJSON
                 ? "bg-yellow-600 hover:bg-yellow-700"
@@ -723,6 +945,14 @@ export default function Page() {
       <AlertModal ref={alertRef} />
       <WarningModal ref={warningRef} />
       <LoadingModal show={loading} message={loadingMessage} />
+      {/* 版本名称输入模态框 */}
+      <SaveVersionModal
+        show={showVersionNameModal}
+        value={versionName}
+        onChange={(e) => setVersionName(e.target.value)}
+        onClose={() => setShowVersionNameModal(false)}
+        onSave={handleSaveAsNewVersion}
+      />
     </div>
   );
 }
