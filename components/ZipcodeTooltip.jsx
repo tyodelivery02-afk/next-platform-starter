@@ -4,17 +4,17 @@
 import { useEffect, useState } from "react";
 import { X, Download } from "phosphor-react";
 
-export default function ZipcodeTooltip({ areaName, prefName, position, onClose }) {
+export default function ZipcodeTooltip({ areaName, areaCode, position, onClose }) {
     const [zipcodes, setZipcodes] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
     useEffect(() => {
         console.log('ZipcodeTooltip - areaName:', areaName);
-        console.log('ZipcodeTooltip - prefName:', prefName);
+        console.log('ZipcodeTooltip - areaCode:', areaCode);
 
-        if (!areaName || !prefName) {
-            console.warn('ZipcodeTooltip - Missing parameters:', { areaName, prefName });
+        if (!areaCode) {
+            console.warn('ZipcodeTooltip - Missing areaCode');
             setLoading(false);
             setError('地域情報が不足しています');
             return;
@@ -25,7 +25,7 @@ export default function ZipcodeTooltip({ areaName, prefName, position, onClose }
             setError(null);
 
             try {
-                const url = `/api/zipcode?prefName=${encodeURIComponent(prefName)}&cityName=${encodeURIComponent(areaName)}`;
+                const url = `/api/zipcode?localGovCode=${encodeURIComponent(areaCode)}`;
                 console.log('ZipcodeTooltip - Fetching URL:', url);
 
                 const response = await fetch(url);
@@ -51,19 +51,19 @@ export default function ZipcodeTooltip({ areaName, prefName, position, onClose }
         };
 
         fetchZipcodes();
-    }, [areaName, prefName]);
+    }, [areaName, areaCode]);
 
     const downloadCSV = () => {
         if (zipcodes.length === 0) return;
 
         // CSV 头部
-        const headers = ['郵便番号', 'タイプ', '地域'];
+        const headers = ['タイプ', '郵便番号', '地域'];
 
         // CSV 数据行
         const rows = zipcodes.map(zip => {
             const type = zip.flag === 1 ? '住所' : '事務所';
             const town = zip.town || '';
-            return [zip.zipcode, type, town];
+            return [type, zip.zipcode, town,];
         });
 
         // 组合 CSV 内容
@@ -125,7 +125,7 @@ export default function ZipcodeTooltip({ areaName, prefName, position, onClose }
             {loading && (
                 <div className="flex items-center justify-center py-8">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-                    <span className="ml-2 text-gray-600">読み込み中...</span>
+                    <span className="ml-2 text-gray-600">loading...</span>
                 </div>
             )}
 
@@ -144,9 +144,7 @@ export default function ZipcodeTooltip({ areaName, prefName, position, onClose }
                 <div className="text-gray-600 py-4">
                     <p className="font-semibold mb-2">郵便番号データがありません</p>
                     <p className="text-sm">
-                        この地域の郵便番号情報が見つかりませんでした。<br></br>
-                        ※データベースと市名が不一致が原因<br></br>
-                        ※時間あったら直します．．．
+                        この地域の郵便番号情報が見つかりませんでした。
                     </p>
                 </div>
             )}

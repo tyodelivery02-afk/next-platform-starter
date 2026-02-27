@@ -272,7 +272,7 @@ export default function PrefectureMap({
       {hoveredArea && tooltipPosition && (
         <ZipcodeTooltip
           areaName={hoveredArea.name}
-          prefName={hoveredArea.prefName}
+          areaCode={hoveredArea.code}
           position={tooltipPosition}
           onClose={handleCloseTooltip}
         />

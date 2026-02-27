@@ -543,12 +543,16 @@ export default function Page() {
     // 从GeoJSON中获取map_scale
     const firstFeature = mapGeoJSON.features[0];
     const mapScale = firstFeature?.properties?.map_scale || 2200;
-
     const width = 2600;
     const height = 2200;
     const padding = 100;
     const svgWidth = width + padding * 2;
-    const svgHeight = height + padding * 2 + 100;
+    const activeColorCount = Object.values(colorPalette).filter((_, i) => {
+      const colorId = Object.keys(colorPalette)[i];
+      return (colorStats[colorId] || 0) > 0;
+    }).length;
+    const statsAreaHeight = Math.max(100, activeColorCount * 60 + 20);
+    const svgHeight = height + padding * 2 + statsAreaHeight;
 
     const projection = geoMercator().fitSize([width, height], mapGeoJSON);
     const pathGenerator = geoPath().projection(projection);
@@ -644,19 +648,30 @@ export default function Page() {
     });
 
     // 统计信息
-    const statsY = height + padding * 2 + 35;
-    const statsContent = `
-    <text x="${svgWidth / 2}" y="${statsY}" 
+    const statsStartX = firstFeature?.properties?.stats_x ?? padding;
+    const statsStartY = firstFeature?.properties?.stats_y ?? (height + padding * 2 + 35);
+
+    const activeColors = Object.entries(colorPalette).filter(([colorId]) => {
+      return (colorStats[colorId] || 0) > 0;
+    });
+
+    const statsContent = activeColors.map(([colorId, hex], index) => {
+      const pop = colorStats[colorId] || 0;
+      const ratio = nationalPopulation > 0
+        ? ((pop / nationalPopulation) * 100).toFixed(3)
+        : 0;
+      const name = colorNames[colorId] || colorId;
+      const y = statsStartY + index * 60;
+
+      return `
+    <rect x="${statsStartX}" y="${y - 22}" width="28" height="28" rx="4" fill="${hex}" />
+    <text x="${statsStartX + 38}" y="${y}"  
       font-size="28" font-weight="bold" font-family="sans-serif" 
-      text-anchor="middle" fill="#000000">
-      総人口: ${totalPopulation.toLocaleString()}人
-    </text>
-    <text x="${svgWidth / 2}" y="${statsY + 35}" 
-      font-size="28" font-weight="bold" font-family="sans-serif" 
-      text-anchor="middle" fill="#000000">
-      全国人口の約 ${populationRatio}%
+      text-anchor="start" fill="${hex}">
+      ${name}：${pop.toLocaleString()}人　（ ${ratio}%）
     </text>
   `;
+    }).join('');
 
     // 组合完整的SVG
     const fullSvg = `<?xml version="1.0" encoding="UTF-8"?>

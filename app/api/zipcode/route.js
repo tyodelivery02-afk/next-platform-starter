@@ -1,39 +1,51 @@
 import { NextResponse } from "next/server";
 import { neon } from "@netlify/neon";
 
-const sql = neon(); // 自动读取 NETLIFY_DATABASE_URL
+const sql = neon();
 
 export async function GET(req) {
     try {
         const { searchParams } = new URL(req.url);
+        const localGovCode = searchParams.get("localGovCode");
 
-        const prefName = searchParams.get("prefName");
-        const cityName = searchParams.get("cityName");
-
-        if (!prefName || !cityName) {
+        if (!localGovCode) {
             return NextResponse.json(
-                { error: "prefName と cityName は必須です" },
+                { error: "localGovCode は必須です" },
                 { status: 400 }
             );
         }
 
-        // 查询这个区下的所有邮编
-        const rows = await sql`
-            SELECT DISTINCT zipcode, town_name, flag
-            FROM zipcodes
-            WHERE pref_name = ${prefName}
-                AND city_name = ${cityName}
-            ORDER BY flag, zipcode
+        // 住所郵便番号（zipcode テーブル）
+        const residenceRows = await sql`
+            SELECT DISTINCT zip_code, town_kanji
+            FROM zipcode
+            WHERE local_government_code = ${localGovCode}
+            ORDER BY zip_code
         `;
 
-        return NextResponse.json({
-            success: true,
-            zipcodes: rows.map(r => ({
-                zipcode: r.zipcode,
-                town: r.town_name,
-                flag: r.flag
+        // 事務所郵便番号（jigyosyo_zipcode テーブル）
+        const officeRows = await sql`
+            SELECT DISTINCT zip_code, office_name_kanji, town_kanji, street_address_kanji
+            FROM jigyosyo_zipcode
+            WHERE local_government_code = ${localGovCode}
+            ORDER BY zip_code
+        `;
+
+        const zipcodes = [
+            ...residenceRows.map(r => ({
+                zipcode: r.zip_code,
+                town: r.town_kanji,
+                flag: 1   // 住所
+            })),
+            ...officeRows.map(r => ({
+                zipcode: r.zip_code,
+                town: [r.office_name_kanji, r.town_kanji, r.street_address_kanji]
+                    .filter(Boolean).join(" "),
+                flag: 2   // 事務所
             }))
-        });
+        ];
+
+        return NextResponse.json({ success: true, zipcodes });
 
     } catch (error) {
         console.error("DB Error:", error);
