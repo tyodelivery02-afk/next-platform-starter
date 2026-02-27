@@ -197,7 +197,7 @@ export default function PrefectureMap({
                 const isSelected = selectedAreas.includes(code);
                 const colorId = areaColors[code];
 
-                let fillColor = "#93c5fd";
+                let fillColor = "#e7e7e7";
                 if (isSelected && colorId) {
                   fillColor = colorPalette[colorId];
                 }

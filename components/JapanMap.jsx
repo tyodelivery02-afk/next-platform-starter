@@ -76,7 +76,7 @@ export default function JapanMap({
 
                     // 获取该都道府県的颜色
                     const colorId = getPrefectureColor(prefCode);
-                    let fillColor = "#60a5fa"; // 默认蓝色
+                    let fillColor = "#e7e7e7";
 
                     if (isSelected) {
                       if (colorId && colorId !== "mixed") {

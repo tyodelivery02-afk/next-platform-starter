@@ -62,6 +62,9 @@ export default function Page() {
     color8: "#E67E22",
     color9: "#C0392B",
     color10: "#A3CB38",
+    color11: "#0047AB",
+    color12: "#2b94eb",
+    color13: "#30D5C8",
   };
 
   const getSelectedPrefName = () => {
@@ -243,6 +246,9 @@ export default function Page() {
           color8: "オレンジ",
           color9: "ダークレッド",
           color10: "ライトグラスグリーン",
+          color11: "コバルトブルー",
+          color12: "ライトブルー",
+          color13: "ターコイズブルー",
           ...data.colorNames
         });
         setSelectedPref(data.selectedPref);

@@ -26,6 +26,9 @@ export async function POST(req) {
       color8: "#E67E22",
       color9: "#C0392B",
       color10: "#A3CB38",
+      color11: "#0047AB",
+      color12: "#2b94eb",
+      color13: "#30D5C8",
     };
 
     let targetVersionId;
