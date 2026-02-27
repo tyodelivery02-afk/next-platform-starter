@@ -7,12 +7,9 @@ import { zoom } from "d3-zoom";
 import { geoCentroid } from "d3-geo";
 
 export default function JapanMap({
-  selectedAreas,
   onSelect,
   isPrefectureSelected,
   getPrefectureColor,
-  areaColors,
-  colorPalette,
   onLoad
 }) {
   const svgRef = useRef(null);
@@ -80,9 +77,9 @@ export default function JapanMap({
 
                     if (isSelected) {
                       if (colorId && colorId !== "mixed") {
-                        fillColor = colorPalette[colorId];
+                        fillColor = "#ec2424"; // 全国地图始终显示红色
                       } else if (colorId === "mixed") {
-                        fillColor = "#d1d5db"; // 混合颜色显示灰色
+                        fillColor = "#ec2424"; // 混合颜色显示红色
                       }
                     }
 
@@ -90,7 +87,7 @@ export default function JapanMap({
                       <Geography
                         key={geo.rsmKey}
                         geography={geo}
-                        onClick={() => onSelect(code, name)}
+                        // onClick={() => onSelect(code, name)}
                         style={{
                           default: { fill: fillColor, stroke: "#fff", cursor: "pointer" },
                           hover: { fill: "#fbbf24" },
