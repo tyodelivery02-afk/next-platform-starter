@@ -9,6 +9,8 @@ import LoadingModal from "components/loading";
 import { prefectures } from "app/config/config";
 import { geoPath, geoMercator } from "d3-geo";
 import SaveVersionModal from "components/saveVersionModal";
+import ShowImportResultModal from "components/showImportResultModal";
+import ShowImportModal from "components/showImportModal";
 import { TrashSimple, CloudArrowDown } from "phosphor-react";
 
 export default function Page() {
@@ -30,16 +32,28 @@ export default function Page() {
   const [colorNames, setColorNames] = useState({
     color1: "オレンジレッド",
     color2: "エメラルドグリーン",
-    color3: "イエロー",
+    color3: "ゴールドイエロー",
     color4: "パープル",
-    color5: "ローズピンク",
-    color6: "オレンジイエロー",
-    color7: "ダークグレー",
-    color8: "オレンジ",
+    color5: "チェリーピンク",
+    color6: "オレンジ",
+    color7: "ダークブルーグレー",
+    color8: "ダークオレンジ",
     color9: "ダークレッド",
-    color10: "ライトグラスグリーン",
+    color10: "ライトグリーン",
+    color11: "コバルトブルー",
+    color12: "スカイブルー",
+    color13: "ターコイズブルー",
   });
   const [colorStats, setColorStats] = useState({});
+
+  // インポート関連状態
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importRawData, setImportRawData] = useState([]);
+  const [uniqueColorKeys, setUniqueColorKeys] = useState([]);
+  const [importColorMapping, setImportColorMapping] = useState({});
+  const importFileRef = useRef(null);
+  const [importErrors, setImportErrors] = useState([]);
+  const [showImportResultModal, setShowImportResultModal] = useState(false);
 
   // 保存/加载相关状态
   const [loading, setLoading] = useState(false);
@@ -71,6 +85,144 @@ export default function Page() {
     if (!selectedPref) return null;
     const pref = prefectures.find(p => p.code === selectedPref);
     return pref ? pref.name : null;
+  };
+
+  // ファイルインポート処理
+  const handleImportFileChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    try {
+      let rows = [];
+
+      if (file.name.endsWith('.csv')) {
+        const text = await file.text();
+        const lines = text.split('\n').filter(l => l.trim());
+        rows = lines.map(line => {
+          // Handle quoted CSV fields
+          const cols = [];
+          let current = '';
+          let inQuotes = false;
+          for (let i = 0; i < line.length; i++) {
+            if (line[i] === '"') { inQuotes = !inQuotes; }
+            else if (line[i] === ',' && !inQuotes) { cols.push(current.trim()); current = ''; }
+            else { current += line[i]; }
+          }
+          cols.push(current.trim());
+          return { col1: cols[0] || '', col2: cols[1] || '', col3: cols[2] || '' };
+        });
+      } else {
+        // XLSX
+        const XLSX = await import('xlsx');
+        const arrayBuffer = await file.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const data = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+        rows = data.filter(r => r && r.length >= 3).map(r => ({
+          col1: String(r[0] ?? ''),
+          col2: String(r[1] ?? ''),
+          col3: String(r[2] ?? ''),
+        }));
+      }
+
+      // Extract last segment after final '-' from col1
+      const parsed = rows
+        .filter(r => r.col1 && r.col2 && r.col3)
+        .map(r => {
+          const parts = r.col1.split('-');
+          const colorKey = parts[parts.length - 1];
+          return { colorKey, prefName: r.col2, areaName: r.col3 };
+        });
+
+      const keys = [...new Set(parsed.map(r => r.colorKey))].sort();
+
+      setImportRawData(parsed);
+      setUniqueColorKeys(keys);
+      setImportColorMapping({});
+      setShowImportModal(true);
+    } catch (err) {
+      warningRef.current?.open({ message: 'ファイルの読み込みに失敗しました: ' + err.message });
+    }
+
+    e.target.value = '';
+  };
+
+  // インポート色の適用
+  const handleApplyImport = async () => {
+    setShowImportModal(false);
+    setLoadingMessage("インポート中...");
+    setLoading(true);
+    const errors = [];
+
+    try {
+      // Group areas by prefecture name
+      const prefGroups = {};
+      importRawData.forEach(({ colorKey, prefName, areaName }) => {
+        const colorId = importColorMapping[colorKey];
+        if (!colorId) return;
+        if (!prefGroups[prefName]) prefGroups[prefName] = [];
+        prefGroups[prefName].push({ areaName, colorId });
+      });
+
+      const newSelectedAreas = [...selectedAreas];
+      const newAreaColors = { ...areaColors };
+
+      for (const [prefName, areas] of Object.entries(prefGroups)) {
+        const pref = prefectures.find(p => p.name === prefName);
+        if (!pref) {
+          console.warn('都道府県が見つかりません:', prefName);
+          continue;
+        }
+
+        const res = await fetch(`/maps/prefecture/${pref.code}.json`);
+        const geoData = await res.json();
+
+        let features = [];
+        if (Array.isArray(geoData.features)) {
+          // GeoJSON
+          features = geoData.features;
+        } else if (geoData.objects) {
+          const objectKey = Object.keys(geoData.objects)[0];
+          features = geoData.objects[objectKey].geometries || [];
+        } else {
+          console.warn("構造不明:", prefName);
+          continue;
+        }
+
+        // Build name → code map (deduplicated by first occurrence)
+        const nameToCode = {};
+        features.forEach(feature => {
+          const props = feature.properties || {};
+          const name = props.N03_004 || props.N03_003 || props.N03_002 || props.N03_001;
+          const code = props.N03_007;
+          if (name && code && !nameToCode[name]) nameToCode[name] = code;
+        });
+
+        areas.forEach(({ areaName, colorId }) => {
+
+          const code = nameToCode[areaName];
+          if (!code) {
+            errors.push({ prefName, areaName });
+            return;
+          }
+          if (!newSelectedAreas.includes(code)) newSelectedAreas.push(code);
+          newAreaColors[code] = colorId;
+        });
+      }
+
+      setSelectedAreas(newSelectedAreas);
+      setAreaColors(newAreaColors);
+      setImportErrors(errors);
+      if (errors.length > 0) {
+        setShowImportResultModal(true);
+      } else {
+        alertRef.current?.open({ message: 'インポートが完了しました！' });
+      }
+    } catch (err) {
+      warningRef.current?.open({ message: 'インポート適用に失敗しました: ' + err.message });
+    } finally {
+      setLoading(false);
+    }
   };
 
   // 保存地图
@@ -549,9 +701,9 @@ export default function Page() {
     // 从GeoJSON中获取map_scale
     const firstFeature = mapGeoJSON.features[0];
     const mapScale = firstFeature?.properties?.map_scale || 2200;
-    const width = 2600;
-    const height = 2200;
-    const padding = 100;
+    const width = 1920;
+    const height = 1080;
+    const padding = 10;
     const svgWidth = width + padding * 2;
     const activeColorCount = Object.values(colorPalette).filter((_, i) => {
       const colorId = Object.keys(colorPalette)[i];
@@ -570,6 +722,7 @@ export default function Page() {
 
     const drawnNames = new Set();
     let svgContent = '';
+    const colorsOnMap = new Set();
 
     // 绘制所有区域
     mapGeoJSON.features.forEach((feature) => {
@@ -587,7 +740,7 @@ export default function Page() {
       }
 
       let isSelected = false;
-      let fillColor = selectedPref ? "#93c5fd" : "#60a5fa";
+      let fillColor = selectedPref ? "#e7e7e7" : "#e7e7e7";
 
       if (!selectedPref) {
         const prefCode = code.substring(0, 2);
@@ -596,6 +749,7 @@ export default function Page() {
           const colorId = getPrefectureColor(prefCode);
           if (colorId && colorId !== "mixed") {
             fillColor = colorPalette[colorId];
+            colorsOnMap.add(colorId);
           } else if (colorId === "mixed") {
             fillColor = "#d1d5db";
           }
@@ -606,6 +760,7 @@ export default function Page() {
           const colorId = areaColors[code];
           if (colorId) {
             fillColor = colorPalette[colorId];
+            colorsOnMap.add(colorId);
           }
         }
       }
@@ -644,7 +799,7 @@ export default function Page() {
           const textY = centroid[1] + (offsetY * scaleRatio);
 
           textContent += `<text x="${textX}" y="${textY}" 
-          font-size="${16 / currentTransform.k}" 
+          font-size="${20 / currentTransform.k}" 
           font-family="sans-serif" 
           text-anchor="middle" 
           dominant-baseline="middle" 
@@ -654,11 +809,14 @@ export default function Page() {
     });
 
     // 统计信息
-    const statsStartX = firstFeature?.properties?.stats_x ?? padding;
-    const statsStartY = firstFeature?.properties?.stats_y ?? (height + padding * 2 + 35);
+    const statsFeature = mapGeoJSON.features.find(
+      f => f.properties?.stats_x != null || f.properties?.stats_y != null
+    );
+    const statsStartX = statsFeature?.properties?.stats_x ?? padding;
+    const statsStartY = statsFeature?.properties?.stats_y ?? (height + padding * 2 + 35);
 
     const activeColors = Object.entries(colorPalette).filter(([colorId]) => {
-      return (colorStats[colorId] || 0) > 0;
+      return colorsOnMap.has(colorId);
     });
 
     const statsContent = activeColors.map(([colorId, hex], index) => {
@@ -674,7 +832,7 @@ export default function Page() {
     <text x="${statsStartX + 38}" y="${y}"  
       font-size="28" font-weight="bold" font-family="sans-serif" 
       text-anchor="start" fill="${hex}">
-      ${name}：${pop.toLocaleString()}人　（ ${ratio}%）
+      ${name}
     </text>
   `;
     }).join('');
@@ -930,6 +1088,17 @@ export default function Page() {
               buttonColor="orther-button"
             />
 
+            <button className="orther-button" onClick={() => importFileRef.current?.click()}>
+              導入
+            </button>
+            <input
+              ref={importFileRef}
+              type="file"
+              accept=".csv,.xlsx,.xls"
+              style={{ display: 'none' }}
+              onChange={handleImportFileChange}
+            />
+
             <button
               className={`orther-button ${mapGeoJSON
                 ? "bg-yellow-600 hover:bg-yellow-700"
@@ -973,6 +1142,23 @@ export default function Page() {
         onChange={(e) => setVersionName(e.target.value)}
         onClose={() => setShowVersionNameModal(false)}
         onSave={handleSaveAsNewVersion}
+      />
+      {/* 导入设定模态框 */}
+      <ShowImportModal
+        show={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        uniqueColorKeys={uniqueColorKeys}
+        importColorMapping={importColorMapping}
+        setImportColorMapping={setImportColorMapping}
+        colorPalette={colorPalette}
+        colorNames={colorNames}
+        onApply={handleApplyImport}
+      />
+      {/* 导入失败显示模态框 */}
+      <ShowImportResultModal
+        show={showImportResultModal}
+        onClose={() => setShowImportResultModal(false)}
+        importErrors={importErrors}
       />
     </div>
   );
