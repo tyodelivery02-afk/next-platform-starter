@@ -11,9 +11,9 @@ export default function ImportResultModal({ show, onClose, importErrors }) {
                     <button onClick={onClose} className="x-button"><X size={24} weight="bold" /></button>
                 </div>
 
-                <div className="p-6">
-                    <p className="text-sm font-bold text-red-600 mb-2">{importErrors.length} 件のエリアが見つかりませんでした：</p>
-                    <p className="text-xs text-gray-500 mb-4">※ファイル内の名称が地図データの名称と一致しているか確認してください。</p>
+                <div className="px-5 py-4">
+                    <p className="text-sm font-bold text-red-600 mb-2">※{importErrors.length} 件のエリアが見つかりませんでした、
+                        ファイル内の名称が地図データの名称と一致しているか確認してください。</p>
                     <div className="border rounded-lg overflow-hidden">
                         <table className="w-full text-sm">
                             <thead className="bg-gray-50 border-b block w-full">

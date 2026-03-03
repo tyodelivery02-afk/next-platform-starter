@@ -213,6 +213,7 @@ export default function Page() {
       setSelectedAreas(newSelectedAreas);
       setAreaColors(newAreaColors);
       setImportErrors(errors);
+      await reloadPopulationAfterLoad(newSelectedAreas, selectedPref);
       if (errors.length > 0) {
         setShowImportResultModal(true);
       } else {
