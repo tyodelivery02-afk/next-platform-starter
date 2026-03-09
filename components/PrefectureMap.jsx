@@ -29,7 +29,10 @@ export default function PrefectureMap({
   // 邮编tooltip相关状态
   const [hoveredArea, setHoveredArea] = useState(null);
   const [tooltipPosition, setTooltipPosition] = useState(null);
-  const hoverTimeoutRef = useRef(null);
+  const [tooltipVisible, setTooltipVisible] = useState(false);
+  const hoverOpenTimerRef = useRef(null);  // 防抖：防止快速扫过触发
+  const closeTimerRef = useRef(null);       // 猶予：允许光标移到 Tooltip
+  const unmountTimerRef = useRef(null);     // 等待淡出动画完成再 unmount
 
   // 切换县级地图时重置 transform 和数据加载状态
   useEffect(() => {
@@ -38,6 +41,10 @@ export default function PrefectureMap({
     loadedPrefCodeRef.current = null;
     setMapConfig({ scale: 2200, center: [139.7, 35.7] });
     // 清除tooltip
+    if (hoverOpenTimerRef.current) clearTimeout(hoverOpenTimerRef.current);
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    if (unmountTimerRef.current) clearTimeout(unmountTimerRef.current);
+    setTooltipVisible(false);
     setHoveredArea(null);
     setTooltipPosition(null);
   }, [prefCode]);
@@ -62,46 +69,69 @@ export default function PrefectureMap({
   // 清理timeout
   useEffect(() => {
     return () => {
-      if (hoverTimeoutRef.current) {
-        clearTimeout(hoverTimeoutRef.current);
-      }
+      if (hoverOpenTimerRef.current) clearTimeout(hoverOpenTimerRef.current);
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+      if (unmountTimerRef.current) clearTimeout(unmountTimerRef.current);
     };
   }, []);
 
   // 处理鼠标进入区域
   const handleMouseEnter = (event, areaName, areaCode) => {
-    // 清除之前的timeout
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current);
-    }
+    if (hoverOpenTimerRef.current) clearTimeout(hoverOpenTimerRef.current);
+    // 如果 tooltip 正在关闭中，取消关闭
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    if (unmountTimerRef.current) clearTimeout(unmountTimerRef.current);
 
-    // 延迟显示tooltip，避免快速移动时频繁触发
-    hoverTimeoutRef.current = setTimeout(() => {
-      const rect = event.target.getBoundingClientRect();
-      setTooltipPosition({
-        x: event.clientX,
-        y: event.clientY,
+    hoverOpenTimerRef.current = setTimeout(() => {
+      setHoveredArea({ name: areaName, code: areaCode, prefName: prefName || "" });
+      setTooltipPosition({ x: event.clientX, y: event.clientY });
+      setTooltipVisible(false); // 先设为不可见，下一帧再触发动画
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => setTooltipVisible(true));
       });
-      setHoveredArea({
-        name: areaName,
-        code: areaCode,
-        prefName: prefName || "", // 传递都道府县名
-      });
-    }, 300); // 300ms延迟
+    }, 250);
   };
 
   // 处理鼠标离开区域
   const handleMouseLeave = () => {
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current);
-    }
-    // 不立即关闭tooltip，让用户可以移动到tooltip上
+    if (hoverOpenTimerRef.current) clearTimeout(hoverOpenTimerRef.current);
+    // 150ms 猶予：在此时间内移入 Tooltip 可取消关闭
+    closeTimerRef.current = setTimeout(() => {
+      setTooltipVisible(false); // 触发淡出动画
+      unmountTimerRef.current = setTimeout(() => {
+        setHoveredArea(null);
+        setTooltipPosition(null);
+      }, 220); // 等动画跑完(200ms)再移除DOM
+    }, 150);
   };
 
   // 关闭tooltip
   const handleCloseTooltip = () => {
-    setHoveredArea(null);
-    setTooltipPosition(null);
+    if (hoverOpenTimerRef.current) clearTimeout(hoverOpenTimerRef.current);
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    if (unmountTimerRef.current) clearTimeout(unmountTimerRef.current);
+    setTooltipVisible(false);
+    unmountTimerRef.current = setTimeout(() => {
+      setHoveredArea(null);
+      setTooltipPosition(null);
+    }, 220);
+  };
+
+  // 鼠标进入 Tooltip 时，取消关闭
+  const handleTooltipMouseEnter = () => {
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    if (unmountTimerRef.current) clearTimeout(unmountTimerRef.current);
+  };
+
+  // 鼠标离开 Tooltip 时，重新启动关闭流程
+  const handleTooltipMouseLeave = () => {
+    closeTimerRef.current = setTimeout(() => {
+      setTooltipVisible(false);
+      unmountTimerRef.current = setTimeout(() => {
+        setHoveredArea(null);
+        setTooltipPosition(null);
+      }, 220);
+    }, 150);
   };
 
   // 放大/缩小按钮
@@ -274,7 +304,10 @@ export default function PrefectureMap({
           areaName={hoveredArea.name}
           areaCode={hoveredArea.code}
           position={tooltipPosition}
+          isVisible={tooltipVisible}
           onClose={handleCloseTooltip}
+          onMouseEnter={handleTooltipMouseEnter}
+          onMouseLeave={handleTooltipMouseLeave}
         />
       )}
     </div>

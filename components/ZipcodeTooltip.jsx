@@ -4,10 +4,11 @@
 import { useEffect, useState } from "react";
 import { X, Download } from "phosphor-react";
 
-export default function ZipcodeTooltip({ areaName, areaCode, position, onClose }) {
+export default function ZipcodeTooltip({ areaName, areaCode, position, isVisible, onClose, onMouseEnter, onMouseLeave }) {
     const [zipcodes, setZipcodes] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [searchQuery, setSearchQuery] = useState("");
 
     useEffect(() => {
         console.log('ZipcodeTooltip - areaName:', areaName);
@@ -23,6 +24,7 @@ export default function ZipcodeTooltip({ areaName, areaCode, position, onClose }
         const fetchZipcodes = async () => {
             setLoading(true);
             setError(null);
+            setSearchQuery("");
 
             try {
                 const url = `/api/zipcode?localGovCode=${encodeURIComponent(areaCode)}`;
@@ -54,7 +56,7 @@ export default function ZipcodeTooltip({ areaName, areaCode, position, onClose }
     }, [areaName, areaCode]);
 
     const downloadCSV = () => {
-        if (zipcodes.length === 0) return;
+        if (filteredZipcodes.length === 0) return;
 
         // CSV 头部
         const headers = ['タイプ', '郵便番号', '地域'];
@@ -88,6 +90,15 @@ export default function ZipcodeTooltip({ areaName, areaCode, position, onClose }
         URL.revokeObjectURL(url);
     };
 
+    const filteredZipcodes = zipcodes.filter(zip => {
+        if (!searchQuery.trim()) return true;
+        const q = searchQuery.toLowerCase();
+        return (
+            (zip.zipcode && zip.zipcode.toLowerCase().includes(q)) ||
+            (zip.town && zip.town.toLowerCase().includes(q))
+        );
+    });
+
     if (!position) return null;
 
     return (
@@ -97,17 +108,22 @@ export default function ZipcodeTooltip({ areaName, areaCode, position, onClose }
                 left: `${position.x + 15}px`,
                 top: `${position.y + 15}px`,
                 minWidth: "280px",
+                opacity: isVisible ? 1 : 0,
+                transform: isVisible ? "translateY(0px) scale(1)" : "translateY(6px) scale(0.97)",
+                transition: "opacity 0.2s ease, transform 0.2s ease",
+                pointerEvents: isVisible ? "auto" : "none",
             }}
-            onMouseLeave={onClose}
+            onMouseEnter={onMouseEnter}
+            onMouseLeave={onMouseLeave}
         >
             <div className="flex justify-between items-start mb-2">
                 <h3 className="font-bold text-lg text-gray-800">
-                    {areaName} {!loading && !error && zipcodes.length > 0 && `(${zipcodes.length}件)`}
+                    {areaName} {!loading && !error && filteredZipcodes.length > 0 && `(${filteredZipcodes.length}件)`}
                 </h3>
                 <div className="flex gap-2">
                     <button
                         onClick={downloadCSV}
-                        disabled={loading || error || zipcodes.length === 0}
+                        disabled={loading || error || filteredZipcodes.length === 0}
                         className="floppyDisk-button"
                         title="CSV出力"
                     >
@@ -121,6 +137,16 @@ export default function ZipcodeTooltip({ areaName, areaCode, position, onClose }
                     </button>
                 </div>
             </div>
+
+            {!loading && !error && zipcodes.length > 0 && (
+                <input
+                    type="text"
+                    placeholder="郵便番号・地域で検索..."
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    className="w-full mb-3 px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:border-blue-400"
+                />
+            )}
 
             {loading && (
                 <div className="flex items-center justify-center py-8">
@@ -140,25 +166,22 @@ export default function ZipcodeTooltip({ areaName, areaCode, position, onClose }
                 </div>
             )}
 
-            {!loading && !error && zipcodes.length === 0 && (
+            {!loading && !error && filteredZipcodes.length === 0 && (
                 <div className="text-gray-600 py-4">
                     <p className="font-semibold mb-2">郵便番号データがありません</p>
-                    <p className="text-sm">
-                        この地域の郵便番号情報が見つかりませんでした。
-                    </p>
                 </div>
             )}
 
-            {!loading && !error && zipcodes.length > 0 && (
+            {!loading && !error && filteredZipcodes.length > 0 && (
                 <div>
                     {/* 住所邮编 (flag=1) */}
-                    {zipcodes.filter(z => z.flag === 1).length > 0 && (
+                    {filteredZipcodes.filter(z => z.flag === 1).length > 0 && (
                         <div className="mb-4">
                             <h4 className="font-semibold text-gray-700 mb-2 pb-1 border-b border-gray-300">
-                                住所 ({zipcodes.filter(z => z.flag === 1).length}件)
+                                {filteredZipcodes.filter(z => z.flag === 1).length}件の住所郵便番号
                             </h4>
                             <div className="space-y-2 max-h-64 overflow-y-auto">
-                                {zipcodes.filter(z => z.flag === 1).map((zip, index) => (
+                                {filteredZipcodes.filter(z => z.flag === 1).map((zip, index) => (
                                     <div
                                         key={`residence-${index}`}
                                         className="table-details-content"
@@ -178,13 +201,13 @@ export default function ZipcodeTooltip({ areaName, areaCode, position, onClose }
                     )}
 
                     {/* 事务所邮编 (flag=2) */}
-                    {zipcodes.filter(z => z.flag === 2).length > 0 && (
+                    {filteredZipcodes.filter(z => z.flag === 2).length > 0 && (
                         <div>
                             <h4 className="font-semibold text-gray-700 mb-2 pb-1 border-b border-gray-300">
-                                事務所 ({zipcodes.filter(z => z.flag === 2).length}件)
+                                {filteredZipcodes.filter(z => z.flag === 2).length}件の事務所郵便番号
                             </h4>
                             <div className="space-y-2 max-h-64 overflow-y-auto">
-                                {zipcodes.filter(z => z.flag === 2).map((zip, index) => (
+                                {filteredZipcodes.filter(z => z.flag === 2).map((zip, index) => (
                                     <div
                                         key={`office-${index}`}
                                         className="table-details-content"
