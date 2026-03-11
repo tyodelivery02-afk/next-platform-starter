@@ -42,7 +42,7 @@ function pickLatestValues(values) {
 export async function GET(req) {
   const { searchParams } = new URL(req.url);
   const level = searchParams.get("level") || "pref"; // pref | muni
-  const prefCode = searchParams.get("prefCode"); 
+  const prefCode = searchParams.get("prefCode");
 
   if (!API_KEY) {
     return NextResponse.json({ error: "ESTAT_API_KEY not configured" }, { status: 500 });
@@ -55,6 +55,8 @@ export async function GET(req) {
     if (level === "pref") {
       statsDataId = STATSID_PREF;
       url = `http://api.e-stat.go.jp/rest/3.0/app/json/getStatsData?cdTab=00001&cdTime=2023100000&cdCat01=A2301&appId=${API_KEY}&statsDataId=${statsDataId}&metaGetFlg=Y&cntGetFlg=N&explanationGetFlg=Y&annotationGetFlg=Y&sectionHeaderFlg=1&replaceSpChars=0`;
+    } else if (level === "area") {
+      url = `http://api.e-stat.go.jp/rest/3.0/app/json/getStatsData?cdCat01=B1102&cdTime=2023100000&appId=${API_KEY}&lang=J&statsDataId=0000020202&metaGetFlg=Y&cntGetFlg=N&explanationGetFlg=Y&annotationGetFlg=Y&sectionHeaderFlg=1&replaceSpChars=0`;
     } else {
       if (!prefCode) {
         return NextResponse.json({ error: "prefCode is required for municipality level" }, { status: 400 });
@@ -63,7 +65,6 @@ export async function GET(req) {
       statsDataId = STATSID_MUNI;
       url = `http://api.e-stat.go.jp/rest/3.0/app/json/getStatsData?cdTab=00001&cdTime=2023100000&cdCat01=A2301&appId=${API_KEY}&statsDataId=${statsDataId}&metaGetFlg=Y&cntGetFlg=N&explanationGetFlg=Y&annotationGetFlg=Y&sectionHeaderFlg=1&replaceSpChars=0`;
     }
-
     console.log("Fetching e-Stat API:", url);
 
     const res = await fetch(url);
@@ -133,6 +134,19 @@ export async function GET(req) {
       console.log(
         `Filtered municipalities for prefCode=${prefCode}: ${filteredValues.length} records (excluded=${values.length - filteredValues.length})`
       );
+    }
+
+    if (level === "area" && prefCode) {
+      filteredValues = values.filter(v => {
+        const code = (v["@area"] || "").trim();
+        return code.startsWith(prefCode) && !code.endsWith("000");
+      });
+    } else if (level === "area" && !prefCode) {
+      // 全件返す（全国合計面積の計算用）
+      filteredValues = values.filter(v => {
+        const code = (v["@area"] || "").trim();
+        return !code.endsWith("000");
+      });
     }
 
     const records = pickLatestValues(filteredValues);

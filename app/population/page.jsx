@@ -19,6 +19,8 @@ export default function Page() {
   const [totalPopulation, setTotalPopulation] = useState(0);
   const [selectedPref, setSelectedPref] = useState(null);
   const [nationalPopulation, setNationalPopulation] = useState(124885175);
+  const [areaData, setAreaData] = useState({});       // code → km²
+  const [nationalArea, setNationalArea] = useState(0); // 全国合計面積
   const [prefMuniMapping, setPrefMuniMapping] = useState({});
   const exportRef = useRef(null);
   const [mapGeoJSON, setMapGeoJSON] = useState(null);
@@ -504,6 +506,23 @@ export default function Page() {
     });
   };
 
+  const fetchAreaData = async () => {
+    try {
+      const res = await fetch(`/api/population/estat?level=area`);
+      const data = await res.json();
+      const map = {};
+      let total = 0;
+      data.records.forEach(r => {
+        map[r.code] = r.value;
+        total += r.value;
+      });
+      setAreaData(map);
+      setNationalArea(total);
+    } catch (e) {
+      console.warn("面積データ取得失敗:", e);
+    }
+  };
+
   const handleSelect = async (code, name) => {
     const already = selectedAreas.includes(code);
 
@@ -891,6 +910,8 @@ export default function Page() {
     handleLoadMap();
   }, []);
 
+  useEffect(() => { fetchAreaData(); }, []);
+
   useEffect(() => {
     loadVersions();
   }, []);
@@ -907,6 +928,11 @@ export default function Page() {
               getPrefectureColor={getPrefectureColor}
               areaColors={areaColors}
               colorPalette={colorPalette}
+              populationData={populationData}
+              prefMuniMapping={prefMuniMapping}
+              nationalPopulation={nationalPopulation}
+              areaData={areaData}
+              nationalArea={nationalArea}
               onLoad={handleMapLoad}
             />
           ) : (

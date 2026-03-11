@@ -5,16 +5,29 @@ import { ComposableMap, Geographies, Geography } from "react-simple-maps";
 import { select } from "d3-selection";
 import { zoom } from "d3-zoom";
 import { geoCentroid } from "d3-geo";
+import PrefectureHoverTooltip from "components/Prefecturehovertooltip";
 
 export default function JapanMap({
   onSelect,
   isPrefectureSelected,
   getPrefectureColor,
-  onLoad
+  onLoad,
+  selectedAreas = [],
+  populationData = {},
+  prefMuniMapping = {},
+  nationalPopulation = 0,
+  areaData = {},
+  nationalArea = 0,
 }) {
   const svgRef = useRef(null);
   const [transform, setTransform] = useState({ k: 1, x: 0, y: 0 });
   const [isDataLoaded, setIsDataLoaded] = useState(false);
+  const [hoveredPref, setHoveredPref] = useState(null);
+  const [tooltipPosition, setTooltipPosition] = useState(null);
+  const [tooltipVisible, setTooltipVisible] = useState(false);
+  const hoverOpenTimerRef = useRef(null);
+  const closeTimerRef = useRef(null);
+  const unmountTimerRef = useRef(null);
 
   // 初始化缩放拖拽
   useEffect(() => {
@@ -24,6 +37,94 @@ export default function JapanMap({
       .on("zoom", (event) => setTransform(event.transform));
     svg.call(zoomBehavior);
   }, []);
+
+  useEffect(() => {
+    return () => {
+      if (hoverOpenTimerRef.current) clearTimeout(hoverOpenTimerRef.current);
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+      if (unmountTimerRef.current) clearTimeout(unmountTimerRef.current);
+    };
+  }, []);
+
+  const handleMouseEnter = (event, prefCode, prefName) => {
+    if (hoverOpenTimerRef.current) clearTimeout(hoverOpenTimerRef.current);
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    if (unmountTimerRef.current) clearTimeout(unmountTimerRef.current);
+    hoverOpenTimerRef.current = setTimeout(() => {
+      setHoveredPref({ prefCode, prefName });
+      setTooltipPosition({ x: event.clientX, y: event.clientY });
+      setTooltipVisible(false);
+      requestAnimationFrame(() => requestAnimationFrame(() => setTooltipVisible(true)));
+    }, 250);
+  };
+
+  const handleMouseLeave = () => {
+    if (hoverOpenTimerRef.current) clearTimeout(hoverOpenTimerRef.current);
+    closeTimerRef.current = setTimeout(() => {
+      setTooltipVisible(false);
+      unmountTimerRef.current = setTimeout(() => {
+        setHoveredPref(null);
+        setTooltipPosition(null);
+      }, 220);
+    }, 150);
+  };
+
+  const handleCloseTooltip = () => {
+    if (hoverOpenTimerRef.current) clearTimeout(hoverOpenTimerRef.current);
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    if (unmountTimerRef.current) clearTimeout(unmountTimerRef.current);
+    setTooltipVisible(false);
+    unmountTimerRef.current = setTimeout(() => {
+      setHoveredPref(null);
+      setTooltipPosition(null);
+    }, 220);
+  };
+
+  const handleTooltipMouseEnter = () => {
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    if (unmountTimerRef.current) clearTimeout(unmountTimerRef.current);
+  };
+
+  const handleTooltipMouseLeave = () => {
+    closeTimerRef.current = setTimeout(() => {
+      setTooltipVisible(false);
+      unmountTimerRef.current = setTimeout(() => {
+        setHoveredPref(null);
+        setTooltipPosition(null);
+      }, 220);
+    }, 150);
+  };
+
+  const buildPrefStats = (prefCode) => {
+    const nationalCode = prefCode + "000";
+    const prefSelectedCodes = selectedAreas.filter(code => code.substring(0, 2) === prefCode);
+    const isPrefLevel = prefSelectedCodes.includes(nationalCode);
+    let selectedPop = 0;
+    if (isPrefLevel) {
+      selectedPop = populationData[nationalCode] || 0;
+    } else {
+      prefSelectedCodes.forEach(code => { selectedPop += populationData[code] || 0; });
+    }
+    const totalPrefPop = populationData[nationalCode] || 0;
+    const muniCodes = prefMuniMapping[prefCode] || [];
+    const selectedAreaCount = isPrefLevel ? muniCodes.length || 1 : prefSelectedCodes.filter(c => !c.endsWith("000")).length;
+    // 面積計算
+    const allPrefAreaCodes = Object.keys(areaData).filter(c => c.startsWith(prefCode));
+    const totalPrefArea = allPrefAreaCodes.reduce((sum, c) => sum + (areaData[c] || 0), 0);
+    const selectedMuniCodes = prefSelectedCodes.filter(c => !c.endsWith("000"));
+    const selectedArea = selectedMuniCodes.reduce((sum, c) => sum + (areaData[c] || 0), 0);
+    return {
+      selectedPop,
+      totalPrefPop,
+      nationalPop: nationalPopulation,
+      selectedAreaCount,
+      totalAreaCount: muniCodes.length,
+      prefSelectedCodes: prefSelectedCodes.filter(c => !c.endsWith("000")),
+      selectedArea,
+      totalPrefArea,
+      nationalArea,
+    };
+  };
 
   const handleZoomIn = () =>
     setTransform((t) => ({ ...t, k: Math.min(t.k + 0.2, 10) }));
@@ -87,6 +188,8 @@ export default function JapanMap({
                       <Geography
                         key={geo.rsmKey}
                         geography={geo}
+                        onMouseEnter={(event) => handleMouseEnter(event, prefCode, name)}  // ← 追加
+                        onMouseLeave={handleMouseLeave}                                     // ← 追加
                         // onClick={() => onSelect(code, name)}
                         style={{
                           default: { fill: fillColor, stroke: "#fff", cursor: "pointer" },
@@ -121,6 +224,18 @@ export default function JapanMap({
           </Geographies>
         </g>
       </ComposableMap>
+      {hoveredPref && tooltipPosition && (
+        <PrefectureHoverTooltip
+          prefCode={hoveredPref.prefCode}
+          prefName={hoveredPref.prefName}
+          stats={buildPrefStats(hoveredPref.prefCode)}
+          position={tooltipPosition}
+          isVisible={tooltipVisible}
+          onClose={handleCloseTooltip}
+          onMouseEnter={handleTooltipMouseEnter}
+          onMouseLeave={handleTooltipMouseLeave}
+        />
+      )}
     </div>
   );
 }
