@@ -195,6 +195,11 @@
         @apply bg-sky-600 text-white border-1 border border-sky-300
     }
 
+    /* 表格标题样式2 */
+    .table-title2 {
+        @apply bg-yellow-100 text-white border-1 border border-sky-100
+    }
+
     /* 表格详细折叠样式 */
     .table-details {
         @apply mb-3 border border-sky-200 rounded-xl bg-white/60 hover:shadow-md hover:shadow-yellow-200 transition-all duration-300

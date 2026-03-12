@@ -21,6 +21,7 @@ export default function Page() {
   const [nationalPopulation, setNationalPopulation] = useState(124885175);
   const [areaData, setAreaData] = useState({});       // code → km²
   const [nationalArea, setNationalArea] = useState(0); // 全国合計面積
+  const [housingCache, setHousingCache] = useState({}); // areaCode → housing data
   const [prefMuniMapping, setPrefMuniMapping] = useState({});
   const exportRef = useRef(null);
   const [mapGeoJSON, setMapGeoJSON] = useState(null);
@@ -523,6 +524,25 @@ export default function Page() {
     }
   };
 
+  const fetchHousingData = async (areaCode) => {
+    if (!areaCode || housingCache[areaCode]) return; // キャッシュ済みならスキップ
+    try {
+      const res = await fetch(`/api/population/estat?level=housing&areaCode=${areaCode}`);
+      const data = await res.json();
+      if (data.housing || data.chartData) {
+        setHousingCache(prev => ({
+          ...prev,
+          [areaCode]: {
+            housing: data.housing ?? null,
+            chartData: data.chartData ?? null,
+          }
+        }));
+      }
+    } catch (e) {
+      console.warn("住宅データ取得失敗:", e);
+    }
+  };
+
   const handleSelect = async (code, name) => {
     const already = selectedAreas.includes(code);
 
@@ -943,6 +963,8 @@ export default function Page() {
               selectedAreas={selectedAreas}
               areaColors={areaColors}
               colorPalette={colorPalette}
+              housingCache={housingCache}
+              onFetchHousing={fetchHousingData}
               onSelect={handleSelect}
               onBack={() => setSelectedPref(null)}
               onLoad={handleMapLoad}
@@ -976,7 +998,8 @@ export default function Page() {
             ・e-Stat 人口データ<br />
             ・総務省統計局<br />
             ・社会・人口統計体系<br />
-            ・A2301_住民基本台帳人口(総数)2023年度
+            ・A2301_住民基本台帳人口(総数)2023年度<br />
+            ・B1102_総面積（北方地域及び竹島を含む）【ｈａ】2023年度<br />
           </div>
         </details>
 

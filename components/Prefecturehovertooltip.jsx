@@ -3,10 +3,10 @@ import { useEffect, useState, useRef } from "react";
 import { Pie } from "react-chartjs-2";
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from "chart.js";
 import ChartDataLabels from "chartjs-plugin-datalabels";
+import { X } from "phosphor-react";
 
 ChartJS.register(ArcElement, Tooltip, Legend, ChartDataLabels);
 
-// ── 小型饼图封装 ──────────────────────────────────────────────
 function MiniPieChart({ selected, total, label, color, loading }) {
     const rest = Math.max(0, total - selected);
     const hasData = total > 0 && selected > 0;
@@ -36,8 +36,8 @@ function MiniPieChart({ selected, total, label, color, loading }) {
                     label: (ctx) => {
                         if (!hasData) return "データなし";
                         const val = ctx.raw;
-                        const pct = ((val / total) * 100).toFixed(2);
-                        return `${ctx.label}: ${val.toLocaleString()} (${pct}%)`;
+                        // const pct = ((val / total) * 100).toFixed(2);
+                        return `${ctx.label}: ${val.toLocaleString()}`;
                     },
                 },
             },
@@ -216,9 +216,9 @@ export default function PrefectureHoverTooltip({
                 </h3>
                 <button
                     onClick={onClose}
-                    className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
+                    className="x-button"
                 >
-                    ×
+                    <X size={24} weight="bold" />
                 </button>
             </div>
 
@@ -238,8 +238,8 @@ export default function PrefectureHoverTooltip({
                         <div className="flex flex-col items-center">
                             <span className="text-xs mb-1">面積効率</span>
                             <span className={`text-2xl font-bold ${aEff !== null
-                                    ? (parseFloat(aEff) < 1 ? "text-slate-400" : parseFloat(aEff) > 5 ? "text-amber-500" : "text-emerald-500")
-                                    : "text-gray-300"
+                                ? (parseFloat(aEff) < 1 ? "text-slate-400" : parseFloat(aEff) > 5 ? "text-amber-500" : "text-emerald-500")
+                                : "text-gray-300"
                                 }`}>
                                 {aEff !== null ? aEff : "—"}
                             </span>

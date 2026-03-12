@@ -8,13 +8,15 @@ import ZipcodeTooltip from "./ZipcodeTooltip";
 
 export default function PrefectureMap({
   prefCode,
-  prefName, // 新增：都道府县名称
+  prefName,
   selectedAreas,
   areaColors,
   colorPalette,
   onSelect,
   onBack,
-  onLoad
+  onLoad,
+  housingCache = {},
+  onFetchHousing,
 }) {
   const svgRef = useRef(null);
   const [transform, setTransform] = useState({ k: 1, x: 0, y: 0 });
@@ -83,6 +85,7 @@ export default function PrefectureMap({
     if (unmountTimerRef.current) clearTimeout(unmountTimerRef.current);
 
     hoverOpenTimerRef.current = setTimeout(() => {
+      if (onFetchHousing) onFetchHousing(areaCode); // ホバー時にprefetch
       setHoveredArea({ name: areaName, code: areaCode, prefName: prefName || "" });
       setTooltipPosition({ x: event.clientX, y: event.clientY });
       setTooltipVisible(false); // 先设为不可见，下一帧再触发动画
@@ -305,6 +308,7 @@ export default function PrefectureMap({
           areaCode={hoveredArea.code}
           position={tooltipPosition}
           isVisible={tooltipVisible}
+          housingData={housingCache[hoveredArea.code]}
           onClose={handleCloseTooltip}
           onMouseEnter={handleTooltipMouseEnter}
           onMouseLeave={handleTooltipMouseLeave}
