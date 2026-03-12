@@ -81,7 +81,7 @@ export async function GET(req) {
       if (!areaCode) {
         return NextResponse.json({ error: "areaCode is required for housing" }, { status: 400 });
       }
-      url = `http://api.e-stat.go.jp/rest/3.0/app/json/getStatsData?cdTab=01-2023&appId=${API_KEY}&lang=J&statsDataId=0004021424&metaGetFlg=Y&cntGetFlg=N&explanationGetFlg=Y&annotationGetFlg=Y&sectionHeaderFlg=1&replaceSpChars=0`;
+      url = `https://api.e-stat.go.jp/rest/3.0/app/json/getStatsData?appId=${API_KEY}&lang=J&statsDataId=0004021424&cdTab=01-2023&cdArea=${encodeURIComponent(areaCode)}&metaGetFlg=N&cntGetFlg=N&explanationGetFlg=N&annotationGetFlg=N&sectionHeaderFlg=0&replaceSpChars=0`;
     } else {
       if (!prefCode) {
         return NextResponse.json({ error: "prefCode is required for municipality level" }, { status: 400 });
@@ -92,7 +92,9 @@ export async function GET(req) {
     }
     console.log("Fetching e-Stat API:", url);
 
-    const res = await fetch(url);
+    const res = await fetch(url, {
+      next: { revalidate: 86400 },
+    });
     if (!res.ok) {
       const txt = await res.text();
       console.error("e-Stat API error:", txt);
