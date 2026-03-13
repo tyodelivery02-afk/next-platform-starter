@@ -4,25 +4,6 @@ import { NextResponse } from "next/server";
 const API_KEY = process.env.ESTAT_API_KEY;
 const STATSID_PREF = process.env.ESTAT_STATSID_PREF || "PUT_PREFECTURE_STATS_DATA_ID";
 const STATSID_MUNI = process.env.ESTAT_STATSID_MUNI || "PUT_MUNICIPALITY_STATS_DATA_ID";
-const CATEGORY_MAP = {
-  // cat01: 住宅の用途
-  "1": "専用住宅",
-  "2": "店舗併用",
-
-  // cat02: 住宅の所有の関係
-  "1": "持ち家",
-  "2": "民営借家",
-  "21": "公営借家",
-  "22": "公社借家",
-  "23": "UR借家",
-  "24": "給与住宅",
-
-  // cat03: 住宅の建て方
-  "1": "一戸建",
-  "2": "長屋建",
-  "3": "共同住宅",
-  "4": "その他"
-};
 
 // VALUE 正规化
 function normalizeValues(value) {
@@ -60,8 +41,9 @@ function pickLatestValues(values) {
 
 export async function GET(req) {
   const { searchParams } = new URL(req.url);
-  const level = searchParams.get("level") || "pref"; // pref | muni
+  const level = searchParams.get("level") || "pref"; // pref | muni | area | housing | housing-pref
   const prefCode = searchParams.get("prefCode");
+  const areaCode = searchParams.get("areaCode");
 
   if (!API_KEY) {
     return NextResponse.json({ error: "ESTAT_API_KEY not configured" }, { status: 500 });
@@ -73,22 +55,38 @@ export async function GET(req) {
 
     if (level === "pref") {
       statsDataId = STATSID_PREF;
-      url = `http://api.e-stat.go.jp/rest/3.0/app/json/getStatsData?cdTab=00001&cdTime=2023100000&cdCat01=A2301&appId=${API_KEY}&statsDataId=${statsDataId}&metaGetFlg=Y&cntGetFlg=N&explanationGetFlg=Y&annotationGetFlg=Y&sectionHeaderFlg=1&replaceSpChars=0`;
+      url = `https://api.e-stat.go.jp/rest/3.0/app/json/getStatsData?cdTab=00001&cdTime=2023100000&cdCat01=A2301&appId=${API_KEY}&statsDataId=${statsDataId}&metaGetFlg=Y&cntGetFlg=N&explanationGetFlg=Y&annotationGetFlg=Y&sectionHeaderFlg=1&replaceSpChars=0`;
+
     } else if (level === "area") {
-      url = `http://api.e-stat.go.jp/rest/3.0/app/json/getStatsData?cdCat01=B1102&cdTime=2023100000&appId=${API_KEY}&lang=J&statsDataId=0000020202&metaGetFlg=Y&cntGetFlg=N&explanationGetFlg=Y&annotationGetFlg=Y&sectionHeaderFlg=1&replaceSpChars=0`;
+      if (areaCode) {
+        url = `https://api.e-stat.go.jp/rest/3.0/app/json/getStatsData?appId=${API_KEY}&lang=J&statsDataId=0000020202&cdCat01=B1102&cdTime=2023100000&cdArea=${encodeURIComponent(areaCode)}&metaGetFlg=N&cntGetFlg=N&explanationGetFlg=N&annotationGetFlg=N&sectionHeaderFlg=0&replaceSpChars=0`;
+
+      } else {
+        url = `https://api.e-stat.go.jp/rest/3.0/app/json/getStatsData?appId=${API_KEY}&lang=J&statsDataId=0000020202&cdCat01=B1102&cdTime=2023100000&metaGetFlg=N&cntGetFlg=N&explanationGetFlg=N&annotationGetFlg=N&sectionHeaderFlg=0&replaceSpChars=0`;
+      }
+
     } else if (level === "housing") {
-      const areaCode = searchParams.get("areaCode");
       if (!areaCode) {
         return NextResponse.json({ error: "areaCode is required for housing" }, { status: 400 });
       }
       url = `https://api.e-stat.go.jp/rest/3.0/app/json/getStatsData?appId=${API_KEY}&lang=J&statsDataId=0004021424&cdTab=01-2023&cdArea=${encodeURIComponent(areaCode)}&metaGetFlg=N&cntGetFlg=N&explanationGetFlg=N&annotationGetFlg=N&sectionHeaderFlg=0&replaceSpChars=0`;
+
+    } else if (level === "housing-pref") {
+      if (!prefCode) {
+        return NextResponse.json({ error: "prefCode is required for housing-pref" }, { status: 400 });
+      }
+
+      const prefAreaCode = `${prefCode}000`;
+
+      url = `https://api.e-stat.go.jp/rest/3.0/app/json/getStatsData?appId=${API_KEY}&lang=J&statsDataId=0004021424&cdTab=01-2023&cdArea=${encodeURIComponent(prefAreaCode)}&metaGetFlg=N&cntGetFlg=N&explanationGetFlg=N&annotationGetFlg=N&sectionHeaderFlg=0&replaceSpChars=0`;
+
     } else {
       if (!prefCode) {
         return NextResponse.json({ error: "prefCode is required for municipality level" }, { status: 400 });
       }
 
       statsDataId = STATSID_MUNI;
-      url = `http://api.e-stat.go.jp/rest/3.0/app/json/getStatsData?cdTab=00001&cdTime=2023100000&cdCat01=A2301&appId=${API_KEY}&statsDataId=${statsDataId}&metaGetFlg=Y&cntGetFlg=N&explanationGetFlg=Y&annotationGetFlg=Y&sectionHeaderFlg=1&replaceSpChars=0`;
+      url = `https://api.e-stat.go.jp/rest/3.0/app/json/getStatsData?cdTab=00001&cdTime=2023100000&cdCat01=A2301&appId=${API_KEY}&statsDataId=${statsDataId}&metaGetFlg=Y&cntGetFlg=N&explanationGetFlg=Y&annotationGetFlg=Y&sectionHeaderFlg=1&replaceSpChars=0`;
     }
     console.log("Fetching e-Stat API:", url);
 
@@ -163,7 +161,12 @@ export async function GET(req) {
       );
     }
 
-    if (level === "area" && prefCode) {
+    if (level === "area" && areaCode) {
+      filteredValues = values.filter(v => {
+        const code = (v["@area"] || "").trim();
+        return code === areaCode.trim();
+      });
+    } else if (level === "area" && prefCode) {
       filteredValues = values.filter(v => {
         const code = (v["@area"] || "").trim();
         return code.startsWith(prefCode) && !code.endsWith("000");
@@ -178,10 +181,8 @@ export async function GET(req) {
 
     // --- Housing（住宅統計）特别处理 ---
     if (level === "housing") {
-      const areaCode = searchParams.get("areaCode");
       const targetCode = areaCode?.trim();
       const areaValues = values.filter(v => (v["@area"] || "").trim() === targetCode);
-
       const housingResult = {
         purpose: {
           "専用住宅": 0,
@@ -236,6 +237,19 @@ export async function GET(req) {
         level: "housing",
         areaCode,
         housing: housingResult,
+        housingStats: {
+          totalHousing:
+            housingResult.purpose["専用住宅"] +
+            housingResult.purpose["店舗その他の併用住宅"],
+          apartment: housingResult.building["共同住宅"],
+          detached: housingResult.building["一戸建"],
+          rowhouseOther: housingResult.building["長屋建・その他"],
+          ownerOccupied: housingResult.tenure["持ち家"],
+          privateRental: housingResult.tenure["民営借家"],
+          publicEtcRental: housingResult.tenure["公営等借家"],
+          exclusiveResidence: housingResult.purpose["専用住宅"],
+          mixedUseResidence: housingResult.purpose["店舗その他の併用住宅"],
+        },
         chartData: {
           inner: [
             { name: "専用住宅", value: housingResult.purpose["専用住宅"] },
@@ -251,6 +265,82 @@ export async function GET(req) {
             { name: "一戸建", value: housingResult.building["一戸建"] },
             { name: "長屋建・その他", value: housingResult.building["長屋建・その他"] },
           ],
+        },
+      });
+    }
+
+    if (level === "housing-pref") {
+      const targetPrefAreaCode = `${prefCode?.trim()}000`;
+
+      const prefValues = values.filter(v => {
+        const code = (v["@area"] || "").trim();
+        return code === targetPrefAreaCode;
+      });
+
+      const housingResult = {
+        purpose: {
+          "専用住宅": 0,
+          "店舗その他の併用住宅": 0,
+        },
+        tenure: {
+          "持ち家": 0,
+          "民営借家": 0,
+          "公営等借家": 0,
+        },
+        building: {
+          "共同住宅": 0,
+          "一戸建": 0,
+          "長屋建・その他": 0,
+        },
+      };
+
+      prefValues.forEach((v) => {
+        const val = v["$"] != null ? Number(v["$"]) : 0;
+        const c1 = String(v["@cat01"] || "");
+        const c2 = String(v["@cat02"] || "");
+        const c3 = String(v["@cat03"] || "");
+
+        // 1) 最内层：住宅用途
+        if (c2 === "0" && c3 === "0") {
+          if (c1 === "1") housingResult.purpose["専用住宅"] += val;
+          else if (c1 === "2") housingResult.purpose["店舗その他の併用住宅"] += val;
+        }
+
+        // 2) 第2层：产权关系
+        if (c1 === "0" && c3 === "0") {
+          if (c2 === "1") housingResult.tenure["持ち家"] += val;
+          else if (c2 === "2") housingResult.tenure["民営借家"] += val;
+          else if (["21", "22", "23", "24"].includes(c2)) {
+            housingResult.tenure["公営等借家"] += val;
+          }
+        }
+
+        // 3) 最外层：建筑形态
+        if (c1 === "0" && c2 === "0") {
+          if (c3 === "3") housingResult.building["共同住宅"] += val;
+          else if (c3 === "1") housingResult.building["一戸建"] += val;
+          else if (c3 === "2" || c3 === "4") {
+            housingResult.building["長屋建・その他"] += val;
+          }
+        }
+      });
+
+      return NextResponse.json({
+        level: "housing-pref",
+        prefCode,
+        housing: housingResult,
+        housingStats: {
+          totalHousing:
+            housingResult.purpose["専用住宅"] +
+            housingResult.purpose["店舗その他の併用住宅"],
+          apartment: housingResult.building["共同住宅"],
+          detached: housingResult.building["一戸建"],
+          rowhouseOther: housingResult.building["長屋建・その他"],
+          ownerOccupied: housingResult.tenure["持ち家"],
+          privateRental: housingResult.tenure["民営借家"],
+          publicEtcRental: housingResult.tenure["公営等借家"],
+          exclusiveResidence: housingResult.purpose["専用住宅"],
+          mixedUseResidence: housingResult.purpose["店舗その他の併用住宅"],
         },
       });
     }

@@ -3,7 +3,7 @@ import { useEffect, useState, useRef } from "react";
 import { Pie } from "react-chartjs-2";
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from "chart.js";
 import ChartDataLabels from "chartjs-plugin-datalabels";
-import { X } from "phosphor-react";
+import { X, Triangle } from "phosphor-react";
 
 ChartJS.register(ArcElement, Tooltip, Legend, ChartDataLabels);
 
@@ -87,6 +87,11 @@ export default function PrefectureHoverTooltip({
     const [popView, setPopView] = useState(0);
     const [zipView, setZipView] = useState(0);
 
+    const [housingStats, setHousingStats] = useState(null);
+    const [housingLoading, setHousingLoading] = useState(true);
+    const [housingView, setHousingView] = useState(0); // 0 = 県内, 1 = 全国
+    const [housingMetric, setHousingMetric] = useState("totalHousing");
+
     useEffect(() => {
         if (!prefCode) return;
         if (fetchedCodeRef.current === prefCode) return;
@@ -111,10 +116,83 @@ export default function PrefectureHoverTooltip({
             });
     }, [prefCode, stats?.prefSelectedCodes]);
 
+    useEffect(() => {
+        if (!prefCode) return;
+
+        const fetchHousingStats = async () => {
+            setHousingLoading(true);
+            setHousingStats(null);
+
+            try {
+                const selectedCodesInPref = (stats?.prefSelectedCodes || []).filter(code =>
+                    code.startsWith(prefCode)
+                );
+
+                // 1. 当前都道府県整体住房数据
+                const prefRes = await fetch(`/api/population/estat?level=housing-pref&prefCode=${prefCode}`);
+                const prefJson = await prefRes.json();
+
+                // 2. 全国住房数据
+                const nationalRes = await fetch(`/api/population/estat?level=housing&areaCode=00000`);
+                const nationalJson = await nationalRes.json();
+
+                // 3. 当前选中的市区町村住房数据汇总
+                const selectedList = await Promise.all(
+                    selectedCodesInPref.map(async (code) => {
+                        const res = await fetch(`/api/population/estat?level=housing&areaCode=${code}`);
+                        return res.json();
+                    })
+                );
+
+                const sumHousingStats = (list) => {
+                    const result = {
+                        totalHousing: 0,
+                        apartment: 0,
+                        detached: 0,
+                        rowhouseOther: 0,
+                        ownerOccupied: 0,
+                        privateRental: 0,
+                        publicEtcRental: 0,
+                        exclusiveResidence: 0,
+                        mixedUseResidence: 0,
+                    };
+
+                    list.forEach(item => {
+                        const hs = item?.housingStats || {};
+                        result.totalHousing += Number(hs.totalHousing || 0);
+                        result.apartment += Number(hs.apartment || 0);
+                        result.detached += Number(hs.detached || 0);
+                        result.rowhouseOther += Number(hs.rowhouseOther || 0);
+                        result.ownerOccupied += Number(hs.ownerOccupied || 0);
+                        result.privateRental += Number(hs.privateRental || 0);
+                        result.publicEtcRental += Number(hs.publicEtcRental || 0);
+                        result.exclusiveResidence += Number(hs.exclusiveResidence || 0);
+                        result.mixedUseResidence += Number(hs.mixedUseResidence || 0);
+                    });
+
+                    return result;
+                };
+
+                setHousingStats({
+                    selected: sumHousingStats(selectedList),
+                    pref: prefJson?.housingStats || null,
+                    national: nationalJson?.housingStats || null,
+                });
+            } catch {
+                setHousingStats(null);
+            } finally {
+                setHousingLoading(false);
+            }
+        };
+
+        fetchHousingStats();
+    }, [prefCode, stats?.prefSelectedCodes]);
+
+
     const tooltipRef = useRef(null);
     const [adjustedPos, setAdjustedPos] = useState({ left: 0, top: 0 });
 
-    const TOOLTIP_W = 480;
+    const TOOLTIP_W = 720;
 
     useEffect(() => {
         if (!position) return;
@@ -174,6 +252,12 @@ export default function PrefectureHoverTooltip({
             ? zipcodeStats?.prefTotalZipcodes ?? 0
             : zipcodeStats?.nationalTotalZipcodes ?? 0;
     const zipLabel = zipView === 0 ? "県内郵便番号ベース" : "全国郵便番号ベース";
+
+    const housingSelected = housingStats?.selected?.[housingMetric] ?? 0;
+    const housingTotal =
+        housingView === 0
+            ? housingStats?.pref?.[housingMetric] ?? 0
+            : housingStats?.national?.[housingMetric] ?? 0;
     // 面積効率 A-Eff = (selectedPop/totalPrefPop) / (selectedArea/totalPrefArea)
     const popRatePref = totalPrefPop > 0 ? selectedPop / totalPrefPop : 0;
     const areaRatePref = totalPrefArea > 0 ? selectedArea / totalPrefArea : 0;
@@ -183,6 +267,18 @@ export default function PrefectureHoverTooltip({
     const zipRatePref = zipcodeStats && zipcodeStats.prefTotalZipcodes > 0
         ? zipcodeStats.selectedZipcodes / zipcodeStats.prefTotalZipcodes : 0;
     const nEff = zipRatePref > 0 ? (popRatePref / zipRatePref).toFixed(2) : null;
+
+    const housingMetricOptions = [
+        { value: "totalHousing", label: "全住房" },
+        { value: "apartment", label: "共同住宅" },
+        { value: "detached", label: "一戸建" },
+        { value: "rowhouseOther", label: "長屋建・その他" },
+        { value: "ownerOccupied", label: "持ち家" },
+        { value: "privateRental", label: "民営借家" },
+        { value: "publicEtcRental", label: "公営等借家" },
+        { value: "exclusiveResidence", label: "専用住宅" },
+        { value: "mixedUseResidence", label: "店舗その他の併用住宅" },
+    ];
 
     // 切替ボタン共通スタイル
     const tabBtn = (active) =>
@@ -231,10 +327,10 @@ export default function PrefectureHoverTooltip({
             </div>
 
             {/* 2つのグラフ横並び */}
-            <div className="p-4 bg-sky-50 text-black grid grid-cols-2 gap-4">
+            <div className="p-4 bg-sky-50 text-black grid grid-cols-3 gap-4">
                 {/* A-Eff / N-Eff */}
                 {(aEff !== null || nEff !== null) && (
-                    <div className="mt-3 p-3 table-details grid grid-cols-2 gap-3 col-span-2">
+                    <div className="mt-3 p-3 table-details grid grid-cols-2 gap-3 col-span-3">
                         <div className="flex flex-col items-center">
                             <span className="text-xs mb-1">面積効率</span>
                             <span className={`text-2xl font-bold ${aEff !== null
@@ -330,6 +426,66 @@ export default function PrefectureHoverTooltip({
                                 <div className="flex justify-between">
                                     <span>{zipView === 0 ? "県合計" : "全国合計"}</span>
                                     <span>{zipTotal.toLocaleString()} 件</span>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </div>
+
+                {/* ── 住房属性占比 ── */}
+                <div className="table-details p-3 flex flex-col items-center gap-3">
+                    <div className="flex items-start justify-between w-full gap-2">
+                        <span className="text-xs font-bold text-gray-600 pt-1">住宅属性シェア</span>
+
+                        <div className="flex items-center gap-1 flex-wrap justify-end">
+                            <button className={tabBtn(housingView === 0)} onClick={() => setHousingView(0)}>
+                                県内
+                            </button>
+                            <button className={tabBtn(housingView === 1)} onClick={() => setHousingView(1)}>
+                                全国
+                            </button>
+
+                            <div className="relative w-5 h-5 rounded group">
+                                <select
+                                    value={housingMetric}
+                                    onChange={(e) => setHousingMetric(e.target.value)}
+                                    className="absolute inset-0 w-full h-full table-style1 appearance-none cursor-pointer opacity-0 z-10"
+                                >
+                                    {housingMetricOptions.map((opt) => (
+                                        <option key={opt.value} value={opt.value}>
+                                            {opt.label}
+                                        </option>
+                                    ))}
+                                </select>
+
+                                <div className="absolute inset-0 text-white bg-sky-700 shadow-md group-hover:bg-sky-800 group-hover:shadow-md group-hover:shadow-yellow-400 group-focus-within:bg-sky-800 group-focus-within:shadow-md group-focus-within:shadow-yellow-400 transition-all duration-300 pointer-events-none flex items-center justify-center rounded-sm">
+                                    <Triangle size={12} weight="bold" style={{ transform: "scaleY(-1)" }} />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <MiniPieChart
+                        selected={housingSelected}
+                        total={housingTotal}
+                        color="#10b981"
+                        loading={housingLoading}
+                    />
+
+                    <div className="w-full text-xs font-mono space-y-0.5">
+                        {housingLoading ? (
+                            <p className="text-center text-gray-400 animate-pulse">読み込み中...</p>
+                        ) : (
+                            <>
+                                <div className="flex justify-between">
+                                    <span>選択済み</span>
+                                    <span className="font-bold">
+                                        {housingSelected.toLocaleString()} 件
+                                    </span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span>{housingView === 0 ? "県合計" : "全国合計"}</span>
+                                    <span>{housingTotal.toLocaleString()} 件</span>
                                 </div>
                             </>
                         )}
