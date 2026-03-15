@@ -1,0 +1,60 @@
+import { NextResponse } from "next/server";
+import { neon } from "@netlify/neon";
+
+const sql = neon();
+
+export async function GET(req) {
+    try {
+        const { searchParams } = new URL(req.url);
+        const prefCode = searchParams.get("prefCode");
+
+        if (!prefCode) {
+            return NextResponse.json(
+                { success: false, error: "prefCode は必須です" },
+                { status: 400 }
+            );
+        }
+
+        // 住所郵便番号
+        const residenceRows = await sql`
+            SELECT DISTINCT zip_code, town_kanji
+            FROM zipcode
+            WHERE local_government_code LIKE ${`${prefCode}%`}
+            ORDER BY zip_code
+        `;
+
+        // 事務所郵便番号
+        const officeRows = await sql`
+            SELECT DISTINCT zip_code, office_name_kanji, town_kanji, street_address_kanji
+            FROM jigyosyo_zipcode
+            WHERE local_government_code LIKE ${`${prefCode}%`}
+            ORDER BY zip_code
+        `;
+
+        const zipcodes = [
+            ...residenceRows.map((r) => ({
+                zipcode: r.zip_code,
+                town: r.town_kanji,
+                flag: 1, // 住所
+            })),
+            ...officeRows.map((r) => ({
+                zipcode: r.zip_code,
+                town: [r.office_name_kanji, r.town_kanji, r.street_address_kanji]
+                    .filter(Boolean)
+                    .join(" "),
+                flag: 2, // 事務所
+            })),
+        ];
+
+        return NextResponse.json({
+            success: true,
+            zipcodes,
+        });
+    } catch (error) {
+        console.error("DB Error:", error);
+        return NextResponse.json(
+            { success: false, error: "DB query failed" },
+            { status: 500 }
+        );
+    }
+}

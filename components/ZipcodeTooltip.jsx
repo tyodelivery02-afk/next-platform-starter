@@ -183,148 +183,147 @@ export default function ZipcodeTooltip({ areaName, areaCode, position, isVisible
             </div>
 
             <div className="overflow-y-auto" style={{ maxHeight: "calc(90vh - 56px)" }}>
+                <div className="p-3 border-b border-gray-100 bg-sky-50 flex flex-col gap-2">
+                    {/* ── 住宅属性 3層ドーナツ ── */}
+                    {housingData ? (() => {
+                        const rawHousing = housingData?.housing || null;
+                        const chartData = housingData?.chartData || null;
 
-                {/* ── 住宅属性 3層ドーナツ ── */}
-                {housingData ? (() => {
-                    const rawHousing = housingData?.housing || null;
-                    const chartData = housingData?.chartData || null;
+                        const purpose = rawHousing?.purpose || {};
+                        const tenure = rawHousing?.tenure || {};
+                        const building = rawHousing?.building || {};
 
-                    const purpose = rawHousing?.purpose || {};
-                    const tenure = rawHousing?.tenure || {};
-                    const building = rawHousing?.building || {};
+                        const innerData = (chartData?.inner || [
+                            { name: "専用住宅", value: purpose["専用住宅"] ?? 0 },
+                            { name: "店舗その他の併用住宅", value: purpose["店舗その他の併用住宅"] ?? 0 },
+                        ]).filter(item => item.value > 0);
 
-                    const innerData = (chartData?.inner || [
-                        { name: "専用住宅", value: purpose["専用住宅"] ?? 0 },
-                        { name: "店舗その他の併用住宅", value: purpose["店舗その他の併用住宅"] ?? 0 },
-                    ]).filter(item => item.value > 0);
+                        const middleData = (chartData?.middle || [
+                            { name: "持ち家", value: tenure["持ち家"] ?? 0 },
+                            { name: "民営借家", value: tenure["民営借家"] ?? 0 },
+                            { name: "公営等借家", value: tenure["公営等借家"] ?? 0 },
+                        ]).filter(item => item.value > 0);
 
-                    const middleData = (chartData?.middle || [
-                        { name: "持ち家", value: tenure["持ち家"] ?? 0 },
-                        { name: "民営借家", value: tenure["民営借家"] ?? 0 },
-                        { name: "公営等借家", value: tenure["公営等借家"] ?? 0 },
-                    ]).filter(item => item.value > 0);
+                        const outerData = (chartData?.outer || [
+                            { name: "共同住宅", value: building["共同住宅"] ?? 0 },
+                            { name: "一戸建", value: building["一戸建"] ?? 0 },
+                            { name: "長屋建・その他", value: building["長屋建・その他"] ?? 0 },
+                        ]).filter(item => item.value > 0);
 
-                    const outerData = (chartData?.outer || [
-                        { name: "共同住宅", value: building["共同住宅"] ?? 0 },
-                        { name: "一戸建", value: building["一戸建"] ?? 0 },
-                        { name: "長屋建・その他", value: building["長屋建・その他"] ?? 0 },
-                    ]).filter(item => item.value > 0);
+                        const hasHousingChart =
+                            innerData.length > 0 ||
+                            middleData.length > 0 ||
+                            outerData.length > 0;
 
-                    const hasHousingChart =
-                        innerData.length > 0 ||
-                        middleData.length > 0 ||
-                        outerData.length > 0;
-
-                    const donutOption = {
-                        tooltip: {
-                            trigger: "item",
-                            formatter: (params) => {
-                                return `${params.seriesName}<br/>${params.name}: ${Number(params.value).toLocaleString()} (${params.percent}%)`;
-                            },
-                        },
-                        legend: {
-                            orient: "vertical",
-                            right: 8,
-                            top: "middle",
-                            itemWidth: 12,
-                            itemHeight: 12,
-                            itemGap: 10,
-                            textStyle: {
-                                fontSize: 11,
-                                color: "#374151",
-                            },
-                        },
-                        series: [
-                            {
-                                name: "建て方",
-                                type: "pie",
-                                radius: ["48%", "64%"],
-                                center: ["32%", "46%"],
-                                minAngle: 3,
-                                selectedMode: false,
-                                avoidLabelOverlap: true,
-                                itemStyle: {
-                                    borderColor: "#fff",
-                                    borderWidth: 2,
-                                    borderRadius: 4,
-                                },
-                                label: {
-                                    show: false,
-                                },
-                                labelLine: {
-                                    show: false,
-                                },
-                                data: outerData,
-                            },
-                            {
-                                name: "権利関係",
-                                type: "pie",
-                                radius: ["28%", "42%"],
-                                center: ["32%", "46%"],
-                                minAngle: 3,
-                                selectedMode: false,
-                                itemStyle: {
-                                    borderColor: "#fff",
-                                    borderWidth: 2,
-                                    borderRadius: 4,
-                                },
-                                label: {
-                                    show: false,
-                                },
-                                data: middleData,
-                            },
-                            {
-                                name: "用途",
-                                type: "pie",
-                                radius: ["10%", "22%"],
-                                center: ["32%", "46%"],
-                                minAngle: 3,
-                                selectedMode: false,
-                                itemStyle: {
-                                    borderColor: "#fff",
-                                    borderWidth: 2,
-                                    borderRadius: 4,
-                                },
-                                label: {
-                                    show: false,
-                                },
-                                data: innerData,
-                            },
-                        ],
-                        color: [
-                            "#38bdf8", "#7dd3fc",
-                            "#4ade80", "#86efac", "#bbf7d0",
-                            "#f59e0b", "#fcd34d", "#fef08a",
-                        ],
-                        graphic: [
-                            {
-                                type: "text",
-                                left: "center",
-                                top: "35%",
-                                style: {
-                                    textAlign: "center",
-                                    fill: "#94a3b8",
-                                    fontSize: 12,
-                                    fontWeight: 600,
+                        const donutOption = {
+                            tooltip: {
+                                trigger: "item",
+                                formatter: (params) => {
+                                    return `${params.seriesName}<br/>${params.name}: ${Number(params.value).toLocaleString()} (${params.percent}%)`;
                                 },
                             },
-                        ],
-                    };
+                            legend: {
+                                orient: "vertical",
+                                right: 8,
+                                top: "middle",
+                                itemWidth: 12,
+                                itemHeight: 12,
+                                itemGap: 10,
+                                textStyle: {
+                                    fontSize: 11,
+                                    color: "#374151",
+                                },
+                            },
+                            series: [
+                                {
+                                    name: "建て方",
+                                    type: "pie",
+                                    radius: ["48%", "64%"],
+                                    center: ["32%", "46%"],
+                                    minAngle: 3,
+                                    selectedMode: false,
+                                    avoidLabelOverlap: true,
+                                    itemStyle: {
+                                        borderColor: "#fff",
+                                        borderWidth: 2,
+                                        borderRadius: 4,
+                                    },
+                                    label: {
+                                        show: false,
+                                    },
+                                    labelLine: {
+                                        show: false,
+                                    },
+                                    data: outerData,
+                                },
+                                {
+                                    name: "権利関係",
+                                    type: "pie",
+                                    radius: ["28%", "42%"],
+                                    center: ["32%", "46%"],
+                                    minAngle: 3,
+                                    selectedMode: false,
+                                    itemStyle: {
+                                        borderColor: "#fff",
+                                        borderWidth: 2,
+                                        borderRadius: 4,
+                                    },
+                                    label: {
+                                        show: false,
+                                    },
+                                    data: middleData,
+                                },
+                                {
+                                    name: "用途",
+                                    type: "pie",
+                                    radius: ["10%", "22%"],
+                                    center: ["32%", "46%"],
+                                    minAngle: 3,
+                                    selectedMode: false,
+                                    itemStyle: {
+                                        borderColor: "#fff",
+                                        borderWidth: 2,
+                                        borderRadius: 4,
+                                    },
+                                    label: {
+                                        show: false,
+                                    },
+                                    data: innerData,
+                                },
+                            ],
+                            color: [
+                                "#38bdf8", "#7dd3fc",
+                                "#4ade80", "#86efac", "#bbf7d0",
+                                "#f59e0b", "#fcd34d", "#fef08a",
+                            ],
+                            graphic: [
+                                {
+                                    type: "text",
+                                    left: "center",
+                                    top: "35%",
+                                    style: {
+                                        textAlign: "center",
+                                        fill: "#94a3b8",
+                                        fontSize: 12,
+                                        fontWeight: 600,
+                                    },
+                                },
+                            ],
+                        };
 
-                    return (
-                        <div className="p-3 border-b border-gray-100 bg-sky-50">
-                            <details className="table-details" open>
+                        return (
+                            <details className="table-details">
                                 <summary className="table-details-content flex justify-between items-center">
                                     <span>住宅属性</span>
                                 </summary>
 
-                                <div className="pt-3 px-1">
+                                <div className="pt-1 px-1">
                                     <div className="flex justify-center">
                                         {hasHousingChart ? (
                                             <ReactECharts
                                                 key={areaCode}
                                                 option={donutOption}
-                                                style={{ width: "100%", height: 300 }}
+                                                style={{ width: "100%", height: 260 }}
                                                 notMerge={true}
                                                 lazyUpdate={false}
                                             />
@@ -336,32 +335,31 @@ export default function ZipcodeTooltip({ areaName, areaCode, position, isVisible
                                     </div>
                                 </div>
                             </details>
+                        );
+                    })() : (
+                        <div className="px-4 py-3 flex items-center gap-2 text-xs text-gray-400">
+                            <div className="w-4 h-4 border-2 border-sky-300 border-t-transparent rounded-full animate-spin" />
+                            住宅データ読み込み中...
                         </div>
-                    );
-                })() : (
-                    <div className="px-4 py-3 bg-sky-50 border-b border-gray-100 flex items-center gap-2 text-xs text-gray-400">
-                        <div className="w-4 h-4 border-2 border-sky-300 border-t-transparent rounded-full animate-spin" />
-                        住宅データ読み込み中...
-                    </div>
-                )}
+                    )}
 
-                {/* ── 郵便番号（折りたたみ） ── */}
-                <div className="p-3 border-b border-gray-100 bg-sky-50">
-                    <details className="table-details">
+                    {/* ── 郵便番号（折りたたみ） ── */}
+                    <details className="table-details" open>
                         <summary className="table-details-content flex justify-between items-center">
                             <span>
                                 郵便番号一覧
-                                {!loading && !error && filteredZipcodes.length > 0 && (<span className="ml-2 text-xs font-normal">
-                                    <span className="text-gray-500">（</span>
-                                    <span className="text-blue-600">
-                                        住所{filteredZipcodes.filter(z => z.flag === 1).length}件
+                                {!loading && !error && filteredZipcodes.length > 0 && (
+                                    <span className="ml-2 text-xs font-normal">
+                                        <span className="text-gray-500">（</span>
+                                        <span className="text-blue-600">
+                                            住所{filteredZipcodes.filter(z => z.flag === 1).length}件
+                                        </span>
+                                        <span className="text-gray-500"> / </span>
+                                        <span className="text-green-600">
+                                            事務所{filteredZipcodes.filter(z => z.flag === 2).length}件
+                                        </span>
+                                        <span className="text-gray-500">）</span>
                                     </span>
-                                    <span className="text-gray-500"> / </span>
-                                    <span className="text-green-600">
-                                        事務所{filteredZipcodes.filter(z => z.flag === 2).length}件
-                                    </span>
-                                    <span className="text-gray-500">）</span>
-                                </span>
                                 )}
                             </span>
                             <button
@@ -400,14 +398,18 @@ export default function ZipcodeTooltip({ areaName, areaCode, position, isVisible
                             )}
 
                             {!loading && !error && filteredZipcodes.length === 0 && (
-                                <p className="text-gray-500 text-sm py-3">郵便番号データがありません</p>
+                                <div className="h-72">
+                                    <div className="h-full border border-gray-200 rounded-md flex items-center justify-center">
+                                        <p className="text-gray-500 text-sm">郵便番号データがありません</p>
+                                    </div>
+                                </div>
                             )}
 
                             {!loading && !error && filteredZipcodes.length > 0 && (
-                                <div>
-                                    <div className="max-h-72 overflow-y-auto border border-gray-200 rounded-md">
+                                <div className="h-72">
+                                    <div className="h-full overflow-y-auto border border-gray-200 rounded-md">
                                         <table className="w-full text-sm border-collapse">
-                                            <thead className="table-title2">
+                                            <thead className="table-title2 sticky top-0 z-10">
                                                 <tr className="border-b border-gray-200">
                                                     <th className="px-3 py-2 text-left font-semibold text-gray-700 w-[140px]">
                                                         郵便番号
