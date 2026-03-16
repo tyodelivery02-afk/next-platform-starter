@@ -8,6 +8,9 @@ import ConfirmModal from "components/confirm";
 import LoadingModal from "components/loading";
 import { prefectures } from "app/config/config";
 import { geoPath, geoMercator } from "d3-geo";
+import pptxgen from "pptxgenjs";
+import JSZip from "jszip";
+import { feature as topoFeature } from "topojson-client";
 import SaveVersionModal from "components/saveVersionModal";
 import ShowImportResultModal from "components/showImportResultModal";
 import ShowImportModal from "components/showImportModal";
@@ -25,6 +28,7 @@ export default function Page() {
   const [prefMuniMapping, setPrefMuniMapping] = useState({});
   const exportRef = useRef(null);
   const [mapGeoJSON, setMapGeoJSON] = useState(null);
+  const [mapProjectionConfig, setMapProjectionConfig] = useState(null);
   const currentPrefRef = useRef(null);
   const alertRef = useRef();
   const warningRef = useRef();
@@ -83,6 +87,8 @@ export default function Page() {
     color12: "#2b94eb",
     color13: "#30D5C8",
   };
+
+  const EMU_PER_INCH = 914400;
 
   const getSelectedPrefName = () => {
     if (!selectedPref) return null;
@@ -202,7 +208,6 @@ export default function Page() {
         });
 
         areas.forEach(({ areaName, colorId }) => {
-
           const code = nameToCode[areaName];
           if (!code) {
             errors.push({ prefName, areaName });
@@ -246,8 +251,8 @@ export default function Page() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          versionId: currentVersionId,  // 传入版本ID
-          versionName: currentVersionName, // 保持原名称
+          versionId: currentVersionId,
+          versionName: currentVersionName,
           selectedAreas,
           areaColors,
           colorNames,
@@ -273,11 +278,9 @@ export default function Page() {
 
   // 読み込み後に人口データもまとめて再取得する
   const reloadPopulationAfterLoad = async (loadedAreas, loadedSelectedPref) => {
-    // 选中的区域为空就不用算了
     if (!loadedAreas || loadedAreas.length === 0) return;
 
     try {
-      // もし特定の都道府県画面（市区町村単位）を開いている場合
       if (loadedSelectedPref) {
         const url = `/api/population/estat?level=muni&prefCode=${loadedSelectedPref}`;
         const res = await fetch(url);
@@ -292,23 +295,17 @@ export default function Page() {
         return;
       }
 
-      // ② 全国画面（都道府県＋一部市区町村）の場合
-
-      // 2-1. 都道府県レベル人口（1回だけ）
       const prefRes = await fetch(`/api/population/estat?level=pref`);
       const prefData = await prefRes.json();
 
       const prefPopData = {};
       prefData.records.forEach((r) => {
-        // r.code は "13000" のようなコードを想定
         prefPopData[r.code] = r.value;
       });
 
-      // 2-2. 市区町村レベル人口（必要な都道府県だけ）
       const muniPrefSet = new Set();
       loadedAreas.forEach((code) => {
         if (!code.endsWith("000")) {
-          // 先頭2桁 = 都道府県コード
           muniPrefSet.add(code.substring(0, 2));
         }
       });
@@ -324,7 +321,6 @@ export default function Page() {
         });
       }
 
-      // 2-3. まとめて state へ反映
       setPopulationData((prev) => ({
         ...prev,
         ...prefPopData,
@@ -352,10 +348,7 @@ export default function Page() {
         setSelectedPref(data.selectedPref);
         setPrefMuniMapping(data.prefMuniMapping);
 
-        // 地図の塗り状態を復元したあと、人口データもまとめて再取得
         await reloadPopulationAfterLoad(data.selectedAreas || [], data.selectedPref || null);
-
-        // alert("読み込みました");
       } else {
         warningRef.current?.open({ message: `読み込み失敗: ${result.error}` });
       }
@@ -411,7 +404,6 @@ export default function Page() {
         setPrefMuniMapping(data.prefMuniMapping);
         await reloadPopulationAfterLoad(data.selectedAreas || [], data.selectedPref || null);
 
-        // 设置当前版本信息
         setCurrentVersionId(versionId);
         setCurrentVersionName(versionName);
 
@@ -452,8 +444,8 @@ export default function Page() {
     setSelectedPref(null);
     setPrefMuniMapping({});
     setColorStats({});
-    setCurrentVersionId(null); // 清空当前版本ID
-    setCurrentVersionName(""); // 清空当前版本名称
+    setCurrentVersionId(null);
+    setCurrentVersionName("");
     alertRef.current?.open({ message: "新しいバージョンを開始しました" });
   };
 
@@ -481,8 +473,8 @@ export default function Page() {
       if (result.success) {
         setShowVersionNameModal(false);
         setVersionName("");
-        setCurrentVersionId(result.versionId); // 设置当前版本ID
-        setCurrentVersionName(versionName.trim()); // 设置当前版本名称
+        setCurrentVersionId(result.versionId);
+        setCurrentVersionName(versionName.trim());
         await loadVersions();
         alertRef.current?.open({ message: "保存成功！" });
       } else {
@@ -525,7 +517,7 @@ export default function Page() {
   };
 
   const fetchHousingData = async (areaCode) => {
-    if (!areaCode || housingCache[areaCode]) return; // キャッシュ済みならスキップ
+    if (!areaCode || housingCache[areaCode]) return;
     try {
       const res = await fetch(`/api/population/estat?level=housing&areaCode=${areaCode}`);
       const data = await res.json();
@@ -599,6 +591,7 @@ export default function Page() {
 
       setSelectedPref(null);
       setMapGeoJSON(null);
+      setMapProjectionConfig(null);
       currentPrefRef.current = null;
       return;
     }
@@ -607,6 +600,7 @@ export default function Page() {
     const isPrefSelected = selectedAreas.includes(nationalPrefCode);
 
     setMapGeoJSON(null);
+    setMapProjectionConfig(null);
     setSelectedPref(prefCode);
     currentPrefRef.current = prefCode;
 
@@ -652,6 +646,7 @@ export default function Page() {
       }
     }
   };
+
   const isPrefectureSelected = (prefCode) => {
     const nationalPrefCode = prefCode + "000";
 
@@ -683,9 +678,286 @@ export default function Page() {
     return muniColors.length > 0 ? "mixed" : null;
   };
 
-  const handleMapLoad = (geojson) => {
-    console.log("地図データ更新:", selectedPref || "全国", "features:", geojson.features.length);
+  const handleMapLoad = (payload) => {
+    const geojson = payload?.geoJSON || payload;
+    const projectionConfig = payload?.mapConfig || null;
+
+    console.log(
+      "地図データ更新:",
+      selectedPref || "全国",
+      "features:",
+      geojson?.features?.length || 0
+    );
+
     setMapGeoJSON(geojson);
+    setMapProjectionConfig(projectionConfig);
+  };
+
+  // ===== PPTX导出相关（仅县地图） =====
+  const topoToGeoFeatures = (topology) => {
+    const objectKey = Object.keys(topology.objects || {})[0];
+    if (!objectKey) throw new Error("TopoJSON objects が見つかりません");
+
+    const fc = topoFeature(topology, topology.objects[objectKey]);
+    if (!fc?.features) throw new Error("FeatureCollection 変換失敗");
+
+    return fc;
+  };
+
+  const getFeatureMeta = (feature) => {
+    return {
+      code: feature.properties?.N03_007 || feature.id,
+      name:
+        feature.properties?.N03_004 ||
+        feature.properties?.N03_003 ||
+        feature.properties?.N03_002 ||
+        feature.properties?.N03_001 ||
+        feature.id,
+      labelOffsetX: Number(feature.properties?.label_offset_x || 0),
+      labelOffsetY: Number(feature.properties?.label_offset_y || 0),
+    };
+  };
+
+  const getFeatureFillHex = (feature) => {
+    const { code } = getFeatureMeta(feature);
+
+    if (!selectedAreas.includes(code)) return "#e7e7e7";
+
+    const colorId = areaColors[code];
+    return colorPalette[colorId] || "#e7e7e7";
+  };
+
+  const extractProjectedPolygons = (feature, projection) => {
+    const geom = feature.geometry;
+    if (!geom) return [];
+
+    const polygons =
+      geom.type === "Polygon"
+        ? [geom.coordinates]
+        : geom.type === "MultiPolygon"
+          ? geom.coordinates
+          : [];
+
+    return polygons
+      .map((polygon) =>
+        polygon.map((ring) =>
+          ring
+            .map(([lng, lat]) => projection([lng, lat]))
+            .filter(Boolean)
+        )
+      )
+      .filter((polygon) => polygon.length > 0);
+  };
+
+  const computePolygonBounds = (polygons) => {
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+
+    polygons.forEach((polygon) => {
+      polygon.forEach((ring) => {
+        ring.forEach(([x, y]) => {
+          if (x < minX) minX = x;
+          if (y < minY) minY = y;
+          if (x > maxX) maxX = x;
+          if (y > maxY) maxY = y;
+        });
+      });
+    });
+
+    if (!isFinite(minX) || !isFinite(minY) || !isFinite(maxX) || !isFinite(maxY)) {
+      return null;
+    }
+
+    return {
+      minX,
+      minY,
+      maxX,
+      maxY,
+      width: Math.max(1, maxX - minX),
+      height: Math.max(1, maxY - minY),
+    };
+  };
+
+  const normalizeHex = (hex) => String(hex || "#E7E7E7").replace("#", "").toUpperCase();
+
+  const escapeXml = (str) =>
+    String(str ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&apos;");
+
+  const getUsedColorLegendItems = () => {
+    if (!selectedPref) return [];
+
+    const used = new Set();
+
+    selectedAreas.forEach((code) => {
+      if (String(code).substring(0, 2) !== selectedPref) return;
+      const colorId = areaColors[code];
+      if (colorId) used.add(colorId);
+    });
+
+    return Array.from(used).map((colorId) => ({
+      colorId,
+      hex: colorPalette[colorId],
+      name: colorNames[colorId] || colorId,
+    }));
+  };
+
+  const buildRegionShapeXml = ({
+    feature,
+    polygons,
+    index,
+    slideScaleX,
+    slideScaleY,
+  }) => {
+    const meta = getFeatureMeta(feature);
+    const fill = normalizeHex(getFeatureFillHex(feature));
+    const line = "FFFFFF";
+
+    const bounds = computePolygonBounds(polygons);
+    if (!bounds || bounds.width <= 0 || bounds.height <= 0) return "";
+
+    const xEmu = Math.round(bounds.minX * slideScaleX);
+    const yEmu = Math.round(bounds.minY * slideScaleY);
+    const wEmu = Math.max(1, Math.round(bounds.width * slideScaleX));
+    const hEmu = Math.max(1, Math.round(bounds.height * slideScaleY));
+
+    const shapeName = `muni-${meta.code}-${meta.name}`;
+
+    const pathsXml = polygons.map((polygon) => {
+      return polygon.map((ring) => {
+        if (!ring.length) return "";
+
+        const localPoints = ring.map(([x, y]) => ({
+          x: Math.round((x - bounds.minX) * slideScaleX),
+          y: Math.round((y - bounds.minY) * slideScaleY),
+        }));
+
+        if (localPoints.length < 2) return "";
+
+        const first = localPoints[0];
+        const rest = localPoints.slice(1);
+
+        return `
+        <a:path w="${wEmu}" h="${hEmu}">
+          <a:moveTo><a:pt x="${first.x}" y="${first.y}"/></a:moveTo>
+          ${rest.map((pt) => `<a:lnTo><a:pt x="${pt.x}" y="${pt.y}"/></a:lnTo>`).join("")}
+          <a:close/>
+        </a:path>
+      `;
+      }).join("");
+    }).join("");
+
+    return `
+    <p:sp>
+      <p:nvSpPr>
+        <p:cNvPr id="${2000 + index}" name="${escapeXml(shapeName)}"/>
+        <p:cNvSpPr/>
+        <p:nvPr/>
+      </p:nvSpPr>
+      <p:spPr>
+        <a:xfrm>
+          <a:off x="${xEmu}" y="${yEmu}"/>
+          <a:ext cx="${wEmu}" cy="${hEmu}"/>
+        </a:xfrm>
+        <a:custGeom>
+          <a:avLst/>
+          <a:gdLst/>
+          <a:ahLst/>
+          <a:cxnLst/>
+          <a:rect l="0" t="0" r="r" b="b"/>
+          <a:pathLst>
+            ${pathsXml}
+          </a:pathLst>
+        </a:custGeom>
+        <a:solidFill><a:srgbClr val="${fill}"/></a:solidFill>
+        <a:ln w="9525">
+          <a:solidFill><a:srgbClr val="${line}"/></a:solidFill>
+        </a:ln>
+      </p:spPr>
+      <p:style>
+        <a:lnRef idx="2"><a:schemeClr val="accent1"/></a:lnRef>
+        <a:fillRef idx="1"><a:schemeClr val="accent1"/></a:fillRef>
+        <a:effectRef idx="0"><a:schemeClr val="accent1"/></a:effectRef>
+        <a:fontRef idx="minor"><a:schemeClr val="tx1"/></a:fontRef>
+      </p:style>
+      <p:txBody>
+        <a:bodyPr rtlCol="0" anchor="ctr"/>
+        <a:lstStyle/>
+        <a:p/>
+      </p:txBody>
+    </p:sp>
+  `;
+  };
+
+  const buildLabelShapeXml = ({
+    feature,
+    projection,
+    slideScaleX,
+    slideScaleY,
+    offsetXPx = 0,
+    offsetYPx = 0,
+    index,
+  }) => {
+    const meta = getFeatureMeta(feature);
+    const pathGenerator = geoPath().projection(projection);
+    const centroid = pathGenerator.centroid(feature);
+
+    if (!centroid || isNaN(centroid[0]) || isNaN(centroid[1])) return "";
+
+    const xPx = centroid[0] + meta.labelOffsetX + offsetXPx;
+    const yPx = centroid[1] + meta.labelOffsetY + offsetYPx;
+
+    const xEmu = Math.round(xPx * slideScaleX);
+    const yEmu = Math.round(yPx * slideScaleY);
+
+    const wEmu = Math.round(0.75 * EMU_PER_INCH);
+    const hEmu = Math.round(0.2 * EMU_PER_INCH);
+
+    const leftEmu = xEmu - Math.round(wEmu / 2);
+    const topEmu = yEmu - Math.round(hEmu / 2);
+
+    return `
+    <p:sp>
+      <p:nvSpPr>
+        <p:cNvPr id="${5000 + index}" name="${escapeXml(`label-${meta.code}-${meta.name}`)}"/>
+        <p:cNvSpPr txBox="1"/>
+        <p:nvPr/>
+      </p:nvSpPr>
+      <p:spPr>
+        <a:xfrm>
+          <a:off x="${leftEmu}" y="${topEmu}"/>
+          <a:ext cx="${wEmu}" cy="${hEmu}"/>
+        </a:xfrm>
+        <a:prstGeom prst="rect">
+          <a:avLst/>
+        </a:prstGeom>
+        <a:noFill/>
+        <a:ln><a:noFill/></a:ln>
+      </p:spPr>
+      <p:txBody>
+        <a:bodyPr wrap="none" anchor="ctr" lIns="0" tIns="0" rIns="0" bIns="0"/>
+        <a:lstStyle/>
+        <a:p>
+          <a:pPr algn="ctr"/>
+          <a:r>
+            <a:rPr lang="ja-JP" sz="700" b="0">
+              <a:solidFill><a:srgbClr val="111111"/></a:solidFill>
+              <a:latin typeface="Noto Sans JP"/>
+              <a:ea typeface="Noto Sans JP"/>
+            </a:rPr>
+            <a:t>${escapeXml(meta.name)}</a:t>
+          </a:r>
+          <a:endParaRPr lang="ja-JP" sz="700"/>
+        </a:p>
+      </p:txBody>
+    </p:sp>
+  `;
   };
 
   useEffect(() => {
@@ -714,188 +986,169 @@ export default function Page() {
     setColorStats(stats);
   }, [selectedAreas, populationData, prefMuniMapping, areaColors]);
 
-  const handleDownloadSVG = () => {
-    if (!mapGeoJSON || !mapGeoJSON.features || mapGeoJSON.features.length === 0) {
-      warningRef.current?.open({ message: "地図データが読み込まれていません。少々お待ちください。" });
+  const handleDownloadPPTX = async () => {
+    if (!selectedPref) {
+      warningRef.current?.open({ message: "先に都道府県地図を開いてください。" });
       return;
     }
 
-    const mapSvg = document.querySelector('svg');
-    const gElement = mapSvg?.querySelector('g[transform]');
-    let currentTransform = { k: 1, x: 0, y: 0 };
+    try {
+      setLoadingMessage("PPTX出力中...");
+      setLoading(true);
 
-    if (gElement) {
-      const transformAttr = gElement.getAttribute('transform');
-      const translateMatch = transformAttr?.match(/translate\(([^,]+),([^)]+)\)/);
-      const scaleMatch = transformAttr?.match(/scale\(([^)]+)\)/);
+      const res = await fetch(`/maps/prefecture/${selectedPref}.json`);
+      if (!res.ok) {
+        throw new Error("県地図ファイルの読み込みに失敗しました");
+      }
 
-      if (translateMatch) {
-        currentTransform.x = parseFloat(translateMatch[1]);
-        currentTransform.y = parseFloat(translateMatch[2]);
+      const topo = await res.json();
+      const geojson = topoToGeoFeatures(topo);
+
+      if (!geojson?.features?.length) {
+        throw new Error("地図データが空です");
       }
-      if (scaleMatch) {
-        currentTransform.k = parseFloat(scaleMatch[1]);
-      }
+
+      const renderWidth = 800;
+      const renderHeight = 600;
+
+      const projection = geoMercator()
+        .scale(mapProjectionConfig?.scale || 2200)
+        .center(mapProjectionConfig?.center || [139.7, 35.7])
+        .translate([renderWidth / 2, renderHeight / 2]);
+
+      const pptx = new pptxgen();
+      pptx.layout = "LAYOUT_WIDE";
+      pptx.author = "OpenAI";
+      pptx.subject = "Prefecture map export";
+      pptx.title = `${getSelectedPrefName() || selectedPref} map`;
+      pptx.company = "OpenAI";
+      pptx.lang = "ja-JP";
+
+      const slide = pptx.addSlide();
+
+      slide.addText(
+        `${getSelectedPrefName() || selectedPref}`,
+        {
+          x: 0.2,
+          y: 0.08,
+          w: 2.8,
+          h: 0.28,
+          fontFace: "Noto Sans JP",
+          fontSize: 18,
+          bold: true,
+          color: "333333",
+          margin: 0,
+        }
+      );
+
+      const legendItems = getUsedColorLegendItems();
+
+      legendItems.forEach((item, idx) => {
+        slide.addShape(pptx.ShapeType.rect, {
+          x: 0.22,
+          y: 0.42 + idx * 0.24,
+          w: 0.16,
+          h: 0.16,
+          line: { color: "FFFFFF", pt: 0.5 },
+          fill: { color: normalizeHex(item.hex) },
+        });
+
+        slide.addText(item.name, {
+          x: 0.42,
+          y: 0.395 + idx * 0.24,
+          w: 2.3,
+          h: 0.2,
+          fontFace: "Noto Sans JP",
+          fontSize: 9,
+          color: "333333",
+          margin: 0,
+        });
+      });
+
+      const arrayBuffer = await pptx.write({ outputType: "arraybuffer" });
+      const zip = await JSZip.loadAsync(arrayBuffer);
+
+      const slidePath = "ppt/slides/slide1.xml";
+      const slideXml = await zip.file(slidePath).async("string");
+
+      const mapXIn = 0;
+      const mapYIn = 0;
+      const mapWIn = 12;
+      const mapHIn = mapWIn * 3 / 4;
+
+      const mapLeftEmu = Math.round(mapXIn * EMU_PER_INCH);
+      const mapTopEmu = Math.round(mapYIn * EMU_PER_INCH);
+      const mapWidthEmu = Math.round(mapWIn * EMU_PER_INCH);
+      const mapHeightEmu = Math.round(mapHIn * EMU_PER_INCH);
+
+      const slideScaleX = mapWidthEmu / renderWidth;
+      const slideScaleY = mapHeightEmu / renderHeight;
+
+      const regionShapesXml = geojson.features.map((f, idx) => {
+        const polygons = extractProjectedPolygons(f, projection);
+        if (!polygons.length) return "";
+
+        const shiftedPolygons = polygons.map((polygon) =>
+          polygon.map((ring) =>
+            ring.map(([x, y]) => [
+              x + mapLeftEmu / slideScaleX,
+              y + mapTopEmu / slideScaleY,
+            ])
+          )
+        );
+
+        return buildRegionShapeXml({
+          feature: f,
+          polygons: shiftedPolygons,
+          index: idx,
+          slideScaleX,
+          slideScaleY,
+        });
+      }).join("");
+
+      const shownNames = new Set();
+
+      const labelShapesXml = geojson.features.map((f, idx) => {
+        const meta = getFeatureMeta(f);
+        const name = meta.name;
+
+        if (!name) return "";
+        if (shownNames.has(name)) return "";
+        shownNames.add(name);
+
+        return buildLabelShapeXml({
+          feature: f,
+          projection,
+          slideScaleX,
+          slideScaleY,
+          offsetXPx: mapLeftEmu / slideScaleX,
+          offsetYPx: mapTopEmu / slideScaleY,
+          index: idx,
+        });
+      }).join("");
+
+      const spTreeCloseTag = "</p:spTree>";
+      const updatedSlideXml = slideXml.replace(
+        spTreeCloseTag,
+        `${regionShapesXml}${labelShapesXml}${spTreeCloseTag}`
+      );
+
+      zip.file(slidePath, updatedSlideXml);
+
+      const outBlob = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(outBlob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `population_map_${selectedPref}_${new Date().toISOString().slice(0, 10)}.pptx`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      alertRef.current?.open({ message: "PPTXを出力しました。" });
+    } catch (err) {
+      warningRef.current?.open({ message: `PPTX出力失敗: ${err.message}` });
+    } finally {
+      setLoading(false);
     }
-
-    // 从GeoJSON中获取map_scale
-    const firstFeature = mapGeoJSON.features[0];
-    const mapScale = firstFeature?.properties?.map_scale || 2200;
-    const width = 1920;
-    const height = 1080;
-    const padding = 10;
-    const svgWidth = width + padding * 2;
-    const activeColorCount = Object.values(colorPalette).filter((_, i) => {
-      const colorId = Object.keys(colorPalette)[i];
-      return (colorStats[colorId] || 0) > 0;
-    }).length;
-    const statsAreaHeight = Math.max(100, activeColorCount * 60 + 20);
-    const svgHeight = height + padding * 2 + statsAreaHeight;
-
-    const projection = geoMercator().fitSize([width, height], mapGeoJSON);
-    const pathGenerator = geoPath().projection(projection);
-
-    // 计算SVG与显示的缩放比例差异
-    const svgScale = mapScale;
-    const pngScale = projection.scale();
-    const scaleRatio = pngScale / svgScale;
-
-    const drawnNames = new Set();
-    let svgContent = '';
-    const colorsOnMap = new Set();
-
-    // 绘制所有区域
-    mapGeoJSON.features.forEach((feature) => {
-      let code, name;
-
-      if (!selectedPref) {
-        code = feature.properties.id;
-        name = feature.properties.nam_ja;
-      } else {
-        code = feature.properties.N03_007;
-        name = feature.properties.N03_004 ||
-          feature.properties.N03_003 ||
-          feature.properties.N03_002 ||
-          feature.properties.N03_001;
-      }
-
-      let isSelected = false;
-      let fillColor = selectedPref ? "#e7e7e7" : "#e7e7e7";
-
-      if (!selectedPref) {
-        const prefCode = code.substring(0, 2);
-        isSelected = isPrefectureSelected(prefCode);
-        if (isSelected) {
-          const colorId = getPrefectureColor(prefCode);
-          if (colorId && colorId !== "mixed") {
-            fillColor = colorPalette[colorId];
-            colorsOnMap.add(colorId);
-          } else if (colorId === "mixed") {
-            fillColor = "#d1d5db";
-          }
-        }
-      } else {
-        isSelected = selectedAreas.includes(code);
-        if (isSelected) {
-          const colorId = areaColors[code];
-          if (colorId) {
-            fillColor = colorPalette[colorId];
-            colorsOnMap.add(colorId);
-          }
-        }
-      }
-
-      const pathData = pathGenerator(feature);
-      if (pathData) {
-        svgContent += `<path d="${pathData}" fill="${fillColor}" stroke="#ffffff" stroke-width="${1.5 / currentTransform.k}" />`;
-      }
-    });
-
-    // 绘制所有文字
-    let textContent = '';
-    mapGeoJSON.features.forEach((feature) => {
-      let code, name;
-
-      if (!selectedPref) {
-        code = feature.properties.id;
-        name = feature.properties.nam_ja;
-      } else {
-        code = feature.properties.N03_007;
-        name = feature.properties.N03_004 ||
-          feature.properties.N03_003 ||
-          feature.properties.N03_002 ||
-          feature.properties.N03_001;
-      }
-
-      if (name && !drawnNames.has(name)) {
-        drawnNames.add(name);
-        const centroid = pathGenerator.centroid(feature);
-
-        if (centroid && !isNaN(centroid[0]) && !isNaN(centroid[1])) {
-          const offsetX = feature.properties.label_offset_x || 0;
-          const offsetY = feature.properties.label_offset_y || 0;
-
-          const textX = centroid[0] + (offsetX * scaleRatio);
-          const textY = centroid[1] + (offsetY * scaleRatio);
-
-          textContent += `<text x="${textX}" y="${textY}" 
-          font-size="${20 / currentTransform.k}" 
-          font-family="sans-serif" 
-          text-anchor="middle" 
-          dominant-baseline="middle" 
-          fill="#000000">${name}</text>`;
-        }
-      }
-    });
-
-    // 统计信息
-    const statsFeature = mapGeoJSON.features.find(
-      f => f.properties?.stats_x != null || f.properties?.stats_y != null
-    );
-    const statsStartX = statsFeature?.properties?.stats_x ?? padding;
-    const statsStartY = statsFeature?.properties?.stats_y ?? (height + padding * 2 + 35);
-
-    const activeColors = Object.entries(colorPalette).filter(([colorId]) => {
-      return colorsOnMap.has(colorId);
-    });
-
-    const statsContent = activeColors.map(([colorId, hex], index) => {
-      const pop = colorStats[colorId] || 0;
-      const ratio = nationalPopulation > 0
-        ? ((pop / nationalPopulation) * 100).toFixed(3)
-        : 0;
-      const name = colorNames[colorId] || colorId;
-      const y = statsStartY + index * 60;
-
-      return `
-    <rect x="${statsStartX}" y="${y - 22}" width="28" height="28" rx="4" fill="${hex}" />
-    <text x="${statsStartX + 38}" y="${y}"  
-      font-size="28" font-weight="bold" font-family="sans-serif" 
-      text-anchor="start" fill="${hex}">
-      ${name}
-    </text>
-  `;
-    }).join('');
-
-    // 组合完整的SVG
-    const fullSvg = `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="${svgWidth}" height="${svgHeight}" viewBox="0 0 ${svgWidth} ${svgHeight}">
-  <g transform="translate(${padding + currentTransform.x * (width / 800)}, ${padding + currentTransform.y * (height / 600)}) scale(${currentTransform.k})">
-    ${svgContent}
-    ${textContent}
-  </g>
-  ${statsContent}
-</svg>`;
-
-    // 下载SVG文件
-    const blob = new Blob([fullSvg], { type: 'image/svg+xml;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    const mapType = selectedPref ? `pref_${selectedPref}` : "national";
-    link.download = `population_map_${mapType}_${new Date().toISOString().slice(0, 10)}.svg`;
-    link.click();
-    URL.revokeObjectURL(url);
   };
 
   useEffect(() => {
@@ -1003,7 +1256,6 @@ export default function Page() {
           </div>
         </details>
 
-        {/* 版本管理 */}
         <details className="table-details">
           <summary className="table-details-content">
             保存したバージョン ({versions.length}/50)
@@ -1022,7 +1274,6 @@ export default function Page() {
                   className="w-full px-3 py-2 rounded-lg border border-sky-100 bg-yellow-100 
                      transition-all duration-300 hover:bg-yellow-200 hover:shadow-sm"
                 >
-                  {/* 第一行：名称 + 图标横向排列 */}
                   <div className="flex items-center justify-between">
                     <span className="font-semibold text-sm text-gray-800 truncate">
                       {version.name}
@@ -1049,7 +1300,6 @@ export default function Page() {
                     </div>
                   </div>
 
-                  {/* 第二行：日期 */}
                   <p className="text-xs text-gray-500 mt-1">
                     {formatDate(version.createdAt)}
                   </p>
@@ -1058,7 +1308,6 @@ export default function Page() {
             ))}
           </ul>
         </details>
-
 
         <details className="table-details mb-2">
           <summary className="table-details-content">塗りつぶし</summary>
@@ -1150,14 +1399,14 @@ export default function Page() {
             />
 
             <button
-              className={`orther-button ${mapGeoJSON
+              className={`orther-button ${selectedPref
                 ? "bg-yellow-600 hover:bg-yellow-700"
                 : "bg-gray-400 cursor-not-allowed"
                 }`}
-              onClick={handleDownloadSVG}
-              disabled={!mapGeoJSON}
+              onClick={handleDownloadPPTX}
+              disabled={!selectedPref}
             >
-              SVG出力
+              PPTX出力
             </button>
           </div>
         </details>
@@ -1185,7 +1434,6 @@ export default function Page() {
       <AlertModal ref={alertRef} />
       <WarningModal ref={warningRef} />
       <LoadingModal show={loading} message={loadingMessage} />
-      {/* 版本名称输入模态框 */}
       <SaveVersionModal
         show={showVersionNameModal}
         value={versionName}
@@ -1193,7 +1441,6 @@ export default function Page() {
         onClose={() => setShowVersionNameModal(false)}
         onSave={handleSaveAsNewVersion}
       />
-      {/* 导入设定模态框 */}
       <ShowImportModal
         show={showImportModal}
         onClose={() => setShowImportModal(false)}
@@ -1204,7 +1451,6 @@ export default function Page() {
         colorNames={colorNames}
         onApply={handleApplyImport}
       />
-      {/* 导入失败显示模态框 */}
       <ShowImportResultModal
         show={showImportResultModal}
         onClose={() => setShowImportResultModal(false)}

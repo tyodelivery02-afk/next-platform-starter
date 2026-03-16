@@ -210,7 +210,13 @@ export default function PrefectureMap({
                     setIsDataLoaded(true);
                     if (onLoad) {
                       console.log("県地図読込完成:", prefCode);
-                      onLoad(geoJSON);
+                      onLoad({
+                        geoJSON,
+                        mapConfig: {
+                          scale: pendingConfigRef.current?.scale ?? Number(firstGeo.properties.map_scale) ?? 2200,
+                          center: pendingConfigRef.current?.center ?? firstGeo.properties.map_center ?? [139.7, 35.7],
+                        }
+                      });
                     }
                   }
                 }, 0);
