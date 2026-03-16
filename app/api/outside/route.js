@@ -23,7 +23,7 @@ export async function GET() {
         ON med.color_id = mcc.color_id
        AND med.version_id = mcc.version_id
       JOIN map_versions mv
-        ON mv.version_id = mcc.version_id
+        ON med.version_id = mv.version_id
       ORDER BY mv.version_name, z.zip_code
     `;
 
@@ -44,12 +44,36 @@ export async function GET() {
       });
     }
 
-    return NextResponse.json(result);
+    return NextResponse.json(result, {
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+      },
+    });
   } catch (error) {
     console.error("DB Error:", error);
     return NextResponse.json(
       { success: false, error: "DB query failed" },
-      { status: 500 }
+      {
+        status: 500,
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type",
+        },
+      }
     );
   }
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+    },
+  });
 }
