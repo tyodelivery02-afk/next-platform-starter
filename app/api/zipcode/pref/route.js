@@ -17,7 +17,7 @@ export async function GET(req) {
 
         // 住所郵便番号
         const residenceRows = await sql`
-            SELECT DISTINCT zip_code, town_kanji
+            SELECT DISTINCT zip_code, city_kanji, town_kanji
             FROM zipcode
             WHERE local_government_code LIKE ${`${prefCode}%`}
             ORDER BY zip_code
@@ -25,7 +25,7 @@ export async function GET(req) {
 
         // 事務所郵便番号
         const officeRows = await sql`
-            SELECT DISTINCT zip_code, office_name_kanji, town_kanji, street_address_kanji
+            SELECT DISTINCT zip_code, city_kanji, office_name_kanji, town_kanji, street_address_kanji
             FROM jigyosyo_zipcode
             WHERE local_government_code LIKE ${`${prefCode}%`}
             ORDER BY zip_code
@@ -34,11 +34,13 @@ export async function GET(req) {
         const zipcodes = [
             ...residenceRows.map((r) => ({
                 zipcode: r.zip_code,
+                city: r.city_kanji || "",
                 town: r.town_kanji,
                 flag: 1, // 住所
             })),
             ...officeRows.map((r) => ({
                 zipcode: r.zip_code,
+                city: r.city_kanji || "",
                 town: [r.office_name_kanji, r.town_kanji, r.street_address_kanji]
                     .filter(Boolean)
                     .join(" "),

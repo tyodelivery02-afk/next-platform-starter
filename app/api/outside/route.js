@@ -3,15 +3,22 @@ import { neon } from "@netlify/neon";
 
 const sql = neon();
 
-function formatVersionName(versionName) {
-  return String(versionName || "").split("_")[0]?.trim() || "UNKNOWN";
-}
-
 export async function GET() {
   try {
     const rows = await sql`
+      WITH latest_versions AS (
+        SELECT DISTINCT ON (split_part(version_name, '_', 1))
+          version_id,
+          version_name,
+          updated_at
+        FROM map_versions
+        ORDER BY
+          split_part(version_name, '_', 1),
+          updated_at DESC,
+          version_id DESC
+      )
       SELECT DISTINCT
-        mv.version_name,
+        split_part(lv.version_name, '_', 1) AS version_key,
         z.zip_code,
         mcc.color_name,
         z.prefecture_kanji,
@@ -22,15 +29,15 @@ export async function GET() {
       JOIN map_color_config mcc
         ON med.color_id = mcc.color_id
        AND med.version_id = mcc.version_id
-      JOIN map_versions mv
-        ON med.version_id = mv.version_id
-      ORDER BY mv.version_name, z.zip_code
+      JOIN latest_versions lv
+        ON med.version_id = lv.version_id
+      ORDER BY version_key, z.zip_code
     `;
 
     const result = {};
 
     for (const r of rows) {
-      const versionKey = formatVersionName(r.version_name);
+      const versionKey = r.version_key || "UNKNOWN";
 
       if (!result[versionKey]) {
         result[versionKey] = [];

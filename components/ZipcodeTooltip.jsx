@@ -4,6 +4,7 @@
 import { useEffect, useState, useRef } from "react";
 import { X, Download } from "phosphor-react";
 import ReactECharts from "echarts-for-react";
+import { downloadZipcodeCSV } from "../utils";
 
 export default function ZipcodeTooltip({ areaName, areaCode, position, isVisible, onClose, onMouseEnter, onMouseLeave, housingData }) {
     const [zipcodes, setZipcodes] = useState([]);
@@ -113,36 +114,24 @@ export default function ZipcodeTooltip({ areaName, areaCode, position, isVisible
     const downloadCSV = () => {
         if (filteredZipcodes.length === 0) return;
 
-        // CSV 头部
-        const headers = ['タイプ', '郵便番号', '地域'];
+        const rows = filteredZipcodes.map((zip) => {
+            const type = zip.flag === 1 ? "住所" : "事務所";
+            const zipcode = zip.zipcode || "";
+            const city =
+                zip.city ||
+                zip.city_kanji ||
+                zip.municipality ||
+                zip.municipality_name ||
+                "";
+            const town = zip.town || "";
 
-        // CSV 数据行
-        const rows = zipcodes.map(zip => {
-            const type = zip.flag === 1 ? '住所' : '事務所';
-            const town = zip.town || '';
-            return [type, zip.zipcode, town,];
+            return [type, zipcode, city, town];
         });
 
-        // 组合 CSV 内容
-        const csvContent = [
-            headers.join(','),
-            ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
-        ].join('\n');
-
-        // 添加 BOM 以支持 Excel 正确显示中文
-        const bom = '\uFEFF';
-        const blob = new Blob([bom + csvContent], { type: 'text/csv;charset=utf-8;' });
-
-        // 创建下载链接
-        const link = document.createElement('a');
-        const url = URL.createObjectURL(blob);
-        link.setAttribute('href', url);
-        link.setAttribute('download', `${areaName}_郵便番号.csv`);
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
+        downloadZipcodeCSV({
+            filename: `${areaName}_郵便番号.csv`,
+            rows,
+        });
     };
 
     const filteredZipcodes = zipcodes.filter(zip => {

@@ -5,6 +5,7 @@ import { Pie } from "react-chartjs-2";
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from "chart.js";
 import ChartDataLabels from "chartjs-plugin-datalabels";
 import { X, Triangle, Download } from "phosphor-react";
+import { downloadZipcodeCSV } from "../utils";
 
 ChartJS.register(ArcElement, Tooltip, Legend, ChartDataLabels);
 
@@ -450,9 +451,10 @@ export default function PrefectureHoverTooltip({
 
     const zipRatePref = prefTotalZipcodes > 0 ? selectedZipcodes / prefTotalZipcodes : 0;
     const nEff = zipRatePref > 0 ? (popRatePref / zipRatePref).toFixed(2) : null;
+    const nationalAreaHa = 37797528; // 377,975.28 km² = 37,797,528 ha
     const areaChartSelected = selectedArea;
-    const areaChartTotal = areaView === 0 ? totalPrefArea : 377975.28; // 全国面積（km²）を仮置き
-    const areaRateChart = areaChartTotal > 0 ? selectedArea / areaChartTotal : 0;
+    const areaChartTotal = areaView === 0 ? totalPrefArea : nationalAreaHa;
+    const areaRateChart = areaChartTotal > 0 ? areaChartSelected / areaChartTotal : 0;
 
     const housingRateBase =
         housingView === 0
@@ -509,31 +511,24 @@ export default function PrefectureHoverTooltip({
     const downloadPrefZipcodesCSV = () => {
         if (prefZipcodes.length === 0) return;
 
-        const headers = ["タイプ", "郵便番号", "地域"];
-
         const rows = prefZipcodes.map((zip) => {
             const type = zip.flag === 1 ? "住所" : "事務所";
+            const zipcode = zip.zipcode || "";
+            const city =
+                zip.city ||
+                zip.city_kanji ||
+                zip.municipality ||
+                zip.municipality_name ||
+                "";
             const town = zip.town || "";
-            return [type, zip.zipcode, town];
+
+            return [type, zipcode, city, town];
         });
 
-        const csvContent = [
-            headers.join(","),
-            ...rows.map((row) => row.map((cell) => `"${cell ?? ""}"`).join(",")),
-        ].join("\n");
-
-        const bom = "\uFEFF";
-        const blob = new Blob([bom + csvContent], { type: "text/csv;charset=utf-8;" });
-
-        const link = document.createElement("a");
-        const url = URL.createObjectURL(blob);
-        link.setAttribute("href", url);
-        link.setAttribute("download", `${prefName || prefCode}_郵便番号.csv`);
-        link.style.visibility = "hidden";
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
+        downloadZipcodeCSV({
+            filename: `${prefName || prefCode}_郵便番号.csv`,
+            rows,
+        });
     };
 
     return (
@@ -759,11 +754,11 @@ export default function PrefectureHoverTooltip({
                             <div className="w-full text-xs font-mono space-y-0.5">
                                 <div className="flex justify-between">
                                     <span>色付き</span>
-                                    <span className="font-bold">{selectedArea.toLocaleString()} km²</span>
+                                    <span className="font-bold">{selectedArea.toLocaleString()} ha</span>
                                 </div>
                                 <div className="flex justify-between">
                                     <span>{areaView === 0 ? "県合計" : "全国合計"}</span>
-                                    <span>{areaChartTotal.toLocaleString()} km²</span>
+                                    <span>{areaChartTotal.toLocaleString()} ha</span>
                                 </div>
                             </div>
                         </div>

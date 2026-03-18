@@ -7,14 +7,22 @@ import WarningModal from "components/warning";
 import ConfirmModal from "components/confirm";
 import LoadingModal from "components/loading";
 import { prefectures } from "app/config/config";
-import { geoPath, geoMercator } from "d3-geo";
 import pptxgen from "pptxgenjs";
 import JSZip from "jszip";
-import { feature as topoFeature } from "topojson-client";
 import SaveVersionModal from "components/saveVersionModal";
 import ShowImportResultModal from "components/showImportResultModal";
 import ShowImportModal from "components/showImportModal";
 import { TrashSimple, CloudArrowDown } from "phosphor-react";
+import { geoMercator } from "d3-geo";
+import {
+  EMU_PER_INCH,
+  topoToGeoFeatures,
+  getFeatureMeta,
+  extractProjectedPolygons,
+  buildRegionShapeXml,
+  buildLabelShapeXml,
+  normalizeHex,
+} from "../../utils";
 
 export default function Page() {
   const [selectedAreas, setSelectedAreas] = useState([]);
@@ -87,8 +95,6 @@ export default function Page() {
     color12: "#2b94eb",
     color13: "#30D5C8",
   };
-
-  const EMU_PER_INCH = 914400;
 
   const getSelectedPrefName = () => {
     if (!selectedPref) return null;
@@ -693,31 +699,6 @@ export default function Page() {
     setMapProjectionConfig(projectionConfig);
   };
 
-  // ===== PPTX导出相关（仅县地图） =====
-  const topoToGeoFeatures = (topology) => {
-    const objectKey = Object.keys(topology.objects || {})[0];
-    if (!objectKey) throw new Error("TopoJSON objects が見つかりません");
-
-    const fc = topoFeature(topology, topology.objects[objectKey]);
-    if (!fc?.features) throw new Error("FeatureCollection 変換失敗");
-
-    return fc;
-  };
-
-  const getFeatureMeta = (feature) => {
-    return {
-      code: feature.properties?.N03_007 || feature.id,
-      name:
-        feature.properties?.N03_004 ||
-        feature.properties?.N03_003 ||
-        feature.properties?.N03_002 ||
-        feature.properties?.N03_001 ||
-        feature.id,
-      labelOffsetX: Number(feature.properties?.label_offset_x || 0),
-      labelOffsetY: Number(feature.properties?.label_offset_y || 0),
-    };
-  };
-
   const getFeatureFillHex = (feature) => {
     const { code } = getFeatureMeta(feature);
 
@@ -726,69 +707,6 @@ export default function Page() {
     const colorId = areaColors[code];
     return colorPalette[colorId] || "#e7e7e7";
   };
-
-  const extractProjectedPolygons = (feature, projection) => {
-    const geom = feature.geometry;
-    if (!geom) return [];
-
-    const polygons =
-      geom.type === "Polygon"
-        ? [geom.coordinates]
-        : geom.type === "MultiPolygon"
-          ? geom.coordinates
-          : [];
-
-    return polygons
-      .map((polygon) =>
-        polygon.map((ring) =>
-          ring
-            .map(([lng, lat]) => projection([lng, lat]))
-            .filter(Boolean)
-        )
-      )
-      .filter((polygon) => polygon.length > 0);
-  };
-
-  const computePolygonBounds = (polygons) => {
-    let minX = Infinity;
-    let minY = Infinity;
-    let maxX = -Infinity;
-    let maxY = -Infinity;
-
-    polygons.forEach((polygon) => {
-      polygon.forEach((ring) => {
-        ring.forEach(([x, y]) => {
-          if (x < minX) minX = x;
-          if (y < minY) minY = y;
-          if (x > maxX) maxX = x;
-          if (y > maxY) maxY = y;
-        });
-      });
-    });
-
-    if (!isFinite(minX) || !isFinite(minY) || !isFinite(maxX) || !isFinite(maxY)) {
-      return null;
-    }
-
-    return {
-      minX,
-      minY,
-      maxX,
-      maxY,
-      width: Math.max(1, maxX - minX),
-      height: Math.max(1, maxY - minY),
-    };
-  };
-
-  const normalizeHex = (hex) => String(hex || "#E7E7E7").replace("#", "").toUpperCase();
-
-  const escapeXml = (str) =>
-    String(str ?? "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&apos;");
 
   const getUsedColorLegendItems = () => {
     if (!selectedPref) return [];
@@ -806,158 +724,6 @@ export default function Page() {
       hex: colorPalette[colorId],
       name: colorNames[colorId] || colorId,
     }));
-  };
-
-  const buildRegionShapeXml = ({
-    feature,
-    polygons,
-    index,
-    slideScaleX,
-    slideScaleY,
-  }) => {
-    const meta = getFeatureMeta(feature);
-    const fill = normalizeHex(getFeatureFillHex(feature));
-    const line = "FFFFFF";
-
-    const bounds = computePolygonBounds(polygons);
-    if (!bounds || bounds.width <= 0 || bounds.height <= 0) return "";
-
-    const xEmu = Math.round(bounds.minX * slideScaleX);
-    const yEmu = Math.round(bounds.minY * slideScaleY);
-    const wEmu = Math.max(1, Math.round(bounds.width * slideScaleX));
-    const hEmu = Math.max(1, Math.round(bounds.height * slideScaleY));
-
-    const shapeName = `muni-${meta.code}-${meta.name}`;
-
-    const pathsXml = polygons.map((polygon) => {
-      return polygon.map((ring) => {
-        if (!ring.length) return "";
-
-        const localPoints = ring.map(([x, y]) => ({
-          x: Math.round((x - bounds.minX) * slideScaleX),
-          y: Math.round((y - bounds.minY) * slideScaleY),
-        }));
-
-        if (localPoints.length < 2) return "";
-
-        const first = localPoints[0];
-        const rest = localPoints.slice(1);
-
-        return `
-        <a:path w="${wEmu}" h="${hEmu}">
-          <a:moveTo><a:pt x="${first.x}" y="${first.y}"/></a:moveTo>
-          ${rest.map((pt) => `<a:lnTo><a:pt x="${pt.x}" y="${pt.y}"/></a:lnTo>`).join("")}
-          <a:close/>
-        </a:path>
-      `;
-      }).join("");
-    }).join("");
-
-    return `
-    <p:sp>
-      <p:nvSpPr>
-        <p:cNvPr id="${2000 + index}" name="${escapeXml(shapeName)}"/>
-        <p:cNvSpPr/>
-        <p:nvPr/>
-      </p:nvSpPr>
-      <p:spPr>
-        <a:xfrm>
-          <a:off x="${xEmu}" y="${yEmu}"/>
-          <a:ext cx="${wEmu}" cy="${hEmu}"/>
-        </a:xfrm>
-        <a:custGeom>
-          <a:avLst/>
-          <a:gdLst/>
-          <a:ahLst/>
-          <a:cxnLst/>
-          <a:rect l="0" t="0" r="r" b="b"/>
-          <a:pathLst>
-            ${pathsXml}
-          </a:pathLst>
-        </a:custGeom>
-        <a:solidFill><a:srgbClr val="${fill}"/></a:solidFill>
-        <a:ln w="9525">
-          <a:solidFill><a:srgbClr val="${line}"/></a:solidFill>
-        </a:ln>
-      </p:spPr>
-      <p:style>
-        <a:lnRef idx="2"><a:schemeClr val="accent1"/></a:lnRef>
-        <a:fillRef idx="1"><a:schemeClr val="accent1"/></a:fillRef>
-        <a:effectRef idx="0"><a:schemeClr val="accent1"/></a:effectRef>
-        <a:fontRef idx="minor"><a:schemeClr val="tx1"/></a:fontRef>
-      </p:style>
-      <p:txBody>
-        <a:bodyPr rtlCol="0" anchor="ctr"/>
-        <a:lstStyle/>
-        <a:p/>
-      </p:txBody>
-    </p:sp>
-  `;
-  };
-
-  const buildLabelShapeXml = ({
-    feature,
-    projection,
-    slideScaleX,
-    slideScaleY,
-    offsetXPx = 0,
-    offsetYPx = 0,
-    index,
-  }) => {
-    const meta = getFeatureMeta(feature);
-    const pathGenerator = geoPath().projection(projection);
-    const centroid = pathGenerator.centroid(feature);
-
-    if (!centroid || isNaN(centroid[0]) || isNaN(centroid[1])) return "";
-
-    const xPx = centroid[0] + meta.labelOffsetX + offsetXPx;
-    const yPx = centroid[1] + meta.labelOffsetY + offsetYPx;
-
-    const xEmu = Math.round(xPx * slideScaleX);
-    const yEmu = Math.round(yPx * slideScaleY);
-
-    const wEmu = Math.round(0.75 * EMU_PER_INCH);
-    const hEmu = Math.round(0.2 * EMU_PER_INCH);
-
-    const leftEmu = xEmu - Math.round(wEmu / 2);
-    const topEmu = yEmu - Math.round(hEmu / 2);
-
-    return `
-    <p:sp>
-      <p:nvSpPr>
-        <p:cNvPr id="${5000 + index}" name="${escapeXml(`label-${meta.code}-${meta.name}`)}"/>
-        <p:cNvSpPr txBox="1"/>
-        <p:nvPr/>
-      </p:nvSpPr>
-      <p:spPr>
-        <a:xfrm>
-          <a:off x="${leftEmu}" y="${topEmu}"/>
-          <a:ext cx="${wEmu}" cy="${hEmu}"/>
-        </a:xfrm>
-        <a:prstGeom prst="rect">
-          <a:avLst/>
-        </a:prstGeom>
-        <a:noFill/>
-        <a:ln><a:noFill/></a:ln>
-      </p:spPr>
-      <p:txBody>
-        <a:bodyPr wrap="none" anchor="ctr" lIns="0" tIns="0" rIns="0" bIns="0"/>
-        <a:lstStyle/>
-        <a:p>
-          <a:pPr algn="ctr"/>
-          <a:r>
-            <a:rPr lang="ja-JP" sz="700" b="0">
-              <a:solidFill><a:srgbClr val="111111"/></a:solidFill>
-              <a:latin typeface="Noto Sans JP"/>
-              <a:ea typeface="Noto Sans JP"/>
-            </a:rPr>
-            <a:t>${escapeXml(meta.name)}</a:t>
-          </a:r>
-          <a:endParaRPr lang="ja-JP" sz="700"/>
-        </a:p>
-      </p:txBody>
-    </p:sp>
-  `;
   };
 
   useEffect(() => {
@@ -1018,10 +784,10 @@ export default function Page() {
 
       const pptx = new pptxgen();
       pptx.layout = "LAYOUT_WIDE";
-      pptx.author = "OpenAI";
-      pptx.subject = "Prefecture map export";
+      pptx.author = "池 鳴輝";
+      pptx.subject = "Prefecture map";
       pptx.title = `${getSelectedPrefName() || selectedPref} map`;
-      pptx.company = "OpenAI";
+      pptx.company = "エスポリア配送部";
       pptx.lang = "ja-JP";
 
       const slide = pptx.addSlide();
@@ -1029,12 +795,12 @@ export default function Page() {
       slide.addText(
         `${getSelectedPrefName() || selectedPref}`,
         {
-          x: 0.2,
-          y: 0.08,
+          x: 0.5,
+          y: 0.5,
           w: 2.8,
           h: 0.28,
           fontFace: "Noto Sans JP",
-          fontSize: 18,
+          fontSize: 28,
           bold: true,
           color: "333333",
           margin: 0,
@@ -1045,21 +811,21 @@ export default function Page() {
 
       legendItems.forEach((item, idx) => {
         slide.addShape(pptx.ShapeType.rect, {
-          x: 0.22,
-          y: 0.42 + idx * 0.24,
+          x: 0.5,
+          y: 1.5 + idx * 0.24,
           w: 0.16,
           h: 0.16,
-          line: { color: "FFFFFF", pt: 0.5 },
+          line: { color: "FFFFFF", pt: 0.7 },
           fill: { color: normalizeHex(item.hex) },
         });
 
         slide.addText(item.name, {
-          x: 0.42,
-          y: 0.395 + idx * 0.24,
+          x: 0.8,
+          y: 1.5 + idx * 0.24,
           w: 2.3,
           h: 0.2,
           fontFace: "Noto Sans JP",
-          fontSize: 9,
+          fontSize: 12,
           color: "333333",
           margin: 0,
         });
@@ -1103,6 +869,7 @@ export default function Page() {
           index: idx,
           slideScaleX,
           slideScaleY,
+          getFeatureFillHex,
         });
       }).join("");
 
@@ -1138,12 +905,13 @@ export default function Page() {
       const outBlob = await zip.generateAsync({ type: "blob" });
       const url = URL.createObjectURL(outBlob);
       const a = document.createElement("a");
+      const exportVersionName = currentVersionName?.trim() || versionName?.trim() || getSelectedPrefName() || selectedPref || "map";
       a.href = url;
-      a.download = `population_map_${selectedPref}_${new Date().toISOString().slice(0, 10)}.pptx`;
+      a.download = `${getSelectedPrefName()}_${exportVersionName}_${new Date().toISOString().slice(0, 10)}.pptx`;
       a.click();
       URL.revokeObjectURL(url);
 
-      alertRef.current?.open({ message: "PPTXを出力しました。" });
+      // alertRef.current?.open({ message: "PPTXを出力しました。" });
     } catch (err) {
       warningRef.current?.open({ message: `PPTX出力失敗: ${err.message}` });
     } finally {
