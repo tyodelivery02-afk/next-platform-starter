@@ -215,6 +215,11 @@
         @apply bg-sky-100 px-4 py-2 cursor-pointer rounded-xl hover:bg-yellow-200 text-sky-900 font-semibold transition-all duration-300
     }
 
+    /* 表格详细内容样式 */
+    .tip1 {
+        @apply bg-yellow-200/80 text-black text-xs rounded-lg px-3 py-2 shadow-lg text-center leading-relaxed
+    }
+
     /* 標簽样式 */
     .tab-style {
         @apply px-4 py-2 bg-yellow-100 rounded border hover:scale-[1.05] transition-all duration-300

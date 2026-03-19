@@ -582,7 +582,7 @@ export default function PrefectureHoverTooltip({
                     <div className="grid grid-cols-4 gap-4 min-h-[430px]">
                         {(aEff !== null || nEff !== null || hEff !== null || popAggEff !== null || housingAggEff !== null || isAnyLoading) && (
                             <div className="mt-2 p-2 grid grid-cols-6 gap-2 col-span-4">
-                                <div className="flex flex-col table-details items-center col-span-2">
+                                <div className="relative group flex flex-col table-details items-center col-span-2">
                                     <span className="text-xs mb-1 mt-2">面積効率</span>
                                     <span
                                         className={`text-2xl font-bold ${aEff !== null
@@ -596,8 +596,20 @@ export default function PrefectureHoverTooltip({
                                     >
                                         {aEff !== null ? aEff : isAnyLoading ? "…" : "—"}
                                     </span>
+                                    <div className="absolute bottom-full mb-2 hidden group-hover:block z-50">
+                                        <div className="tip1 min-w-[280px]">
+                                            <div className="inline-block text-center">
+                                                <div className="px-2 pb-1 border-b border-black">
+                                                    色付きエリアの人口数 / 都道府県総人口数
+                                                </div>
+                                                <div className="px-2 pt-1">
+                                                    色付きエリアの面積 / 都道府県総面積
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div className="flex flex-col table-details items-center col-span-2">
+                                <div className="relative group flex flex-col table-details items-center col-span-2">
                                     <span className="text-xs mb-1 mt-2">郵便番号効率</span>
                                     <span
                                         className={`text-2xl font-bold ${!zipcodeLoading && nEff !== null
@@ -611,8 +623,20 @@ export default function PrefectureHoverTooltip({
                                     >
                                         {!zipcodeLoading && nEff !== null ? nEff : zipcodeLoading ? "…" : "—"}
                                     </span>
+                                    <div className="absolute bottom-full mb-2 hidden group-hover:block z-50">
+                                        <div className="tip1 min-w-[310px]">
+                                            <div className="inline-block text-center">
+                                                <div className="px-2 pb-1 border-b border-black">
+                                                    色付きエリアの人口数 / 都道府県総人口数
+                                                </div>
+                                                <div className="px-2 pt-1">
+                                                    色付きエリアの郵便番号数 / 都道府県総郵便番号数
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div className="flex flex-col table-details items-center col-span-2">
+                                <div className="relative group flex flex-col table-details items-center col-span-2">
                                     <span className="text-xs mb-1 mt-2">住宅効率</span>
                                     <span
                                         className={`text-2xl font-bold ${!housingLoading && hEff !== null
@@ -626,8 +650,20 @@ export default function PrefectureHoverTooltip({
                                     >
                                         {!housingLoading && hEff !== null ? hEff : housingLoading ? "…" : "—"}
                                     </span>
+                                    <div className="absolute bottom-full mb-2 hidden group-hover:block z-50">
+                                        <div className="tip1 min-w-[280px]">
+                                            <div className="inline-block text-center">
+                                                <div className="px-2 pb-1 border-b border-black">
+                                                    色付きエリアの人口数 / 都道府県総人口数
+                                                </div>
+                                                <div className="px-2 pt-1">
+                                                    色付きエリアの住宅数 / 都道府県総住宅数
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div className="flex flex-col table-details items-center col-span-3">
+                                <div className="relative group flex flex-col table-details items-center col-span-3">
                                     <span className="text-xs mb-1 mt-2">人口集約度</span>
                                     <span
                                         className={`text-2xl font-bold ${popAggEff !== null
@@ -641,9 +677,22 @@ export default function PrefectureHoverTooltip({
                                     >
                                         {popAggEff !== null ? popAggEff : isAnyLoading ? "…" : "—"}
                                     </span>
+
+                                    <div className="absolute bottom-full mb-2 hidden group-hover:block z-50">
+                                        <div className="tip1 min-w-[260px]">
+                                            <div className="inline-block text-center">
+                                                <div className="px-2 pb-1 border-b border-black">
+                                                    色付きエリアの人口数 / 色付き面積
+                                                </div>
+                                                <div className="px-2 pt-1">
+                                                    都道府県総人口数 / 都道府県総面積
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
 
-                                <div className="flex flex-col table-details items-center col-span-3">
+                                <div className="relative group flex flex-col table-details items-center col-span-3">
                                     <span className="text-xs mb-1 mt-2">住宅集約度</span>
                                     <span
                                         className={`text-2xl font-bold ${housingAggEff !== null
@@ -657,6 +706,19 @@ export default function PrefectureHoverTooltip({
                                     >
                                         {housingAggEff !== null ? housingAggEff : housingLoading ? "…" : "—"}
                                     </span>
+
+                                    <div className="absolute bottom-full mb-2 hidden group-hover:block z-50">
+                                        <div className="tip1 min-w-[260px]">
+                                            <div className="inline-block text-center">
+                                                <div className="px-2 pb-1 border-b border-black">
+                                                    色付きエリアの住宅数 / 色付き面積
+                                                </div>
+                                                <div className="px-2 pt-1">
+                                                    都道府県総住宅数 / 都道府県総面積
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         )}
