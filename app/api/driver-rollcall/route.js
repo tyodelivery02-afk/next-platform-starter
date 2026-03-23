@@ -1,4 +1,4 @@
-// app/api/driver-rollcall/import/route.js
+// app/api/driver-rollcall/route.js
 import { NextResponse } from "next/server";
 import { neon } from "@netlify/neon";
 
@@ -311,7 +311,7 @@ export async function POST(request) {
       skipped_duplicate: normalizedRows.length - inserted,
     });
   } catch (err) {
-    console.error("❌ POST /api/driver-rollcall/import error:", err);
+    console.error("❌ POST /api/driver-rollcall error:", err);
     return NextResponse.json(
       { success: false, error: err.message },
       { status: 500 }
