@@ -1,14 +1,7 @@
 import { NextResponse } from "next/server";
 import { neon } from "@netlify/neon";
-import { v2 as cloudinary } from "cloudinary";
 
 const sql = neon();
-
-cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET,
-});
 
 function getClientIp(request) {
     const forwarded = request.headers.get("x-forwarded-for");
@@ -34,29 +27,6 @@ function normalizeArray(value) {
     return [];
 }
 
-function isDataImage(value) {
-    return typeof value === "string" && /^data:image\/[a-zA-Z0-9.+-]+;base64,/.test(value);
-}
-
-async function uploadImageToCloudinary(imageData, folder, publicIdBase) {
-    if (!isDataImage(imageData)) {
-        return { url: "", public_id: "" };
-    }
-
-    const result = await cloudinary.uploader.upload(imageData, {
-        folder,
-        public_id: publicIdBase,
-        resource_type: "image",
-        overwrite: true,
-        invalidate: true,
-    });
-
-    return {
-        url: result.secure_url || "",
-        public_id: result.public_id || "",
-    };
-}
-
 function normalizeRow(row) {
     const record_key = normalizeText(row.record_key);
     const record_date = normalizeText(row.record_date);
@@ -80,7 +50,7 @@ function normalizeRow(row) {
         method_1: normalizeText(row.method_1),
         vehicle_1: normalizeText(row.vehicle_1),
         alcohol_1: normalizeText(row.alcohol_1),
-        measurement_image_1: row.measurement_image_1 || "",
+        measurement_image_1: normalizeText(row.measurement_image_1),
         measurement_image_1_public_id: "",
         disease_status_1: normalizeText(row.disease_status_1),
         fatigue_status_1: normalizeText(row.fatigue_status_1),
@@ -89,7 +59,7 @@ function normalizeRow(row) {
         instructions_1: normalizeArray(row.instructions_1),
         other_items_1: normalizeText(row.other_items_1),
         executor_1: normalizeText(row.executor_1),
-        call_image_1: row.call_image_1 || "",
+        call_image_1: normalizeText(row.call_image_1),
         call_image_1_public_id: "",
 
         call_time_2: normalizeText(row.call_time_2),
@@ -97,7 +67,7 @@ function normalizeRow(row) {
         method_2: normalizeText(row.method_2),
         vehicle_2: normalizeText(row.vehicle_2),
         alcohol_2: normalizeText(row.alcohol_2),
-        measurement_image_2: row.measurement_image_2 || "",
+        measurement_image_2: normalizeText(row.measurement_image_2),
         measurement_image_2_public_id: "",
         disease_status_2: normalizeText(row.disease_status_2),
         fatigue_status_2: normalizeText(row.fatigue_status_2),
@@ -112,44 +82,13 @@ function normalizeRow(row) {
         method_3: normalizeText(row.method_3),
         vehicle_3: normalizeText(row.vehicle_3),
         alcohol_3: normalizeText(row.alcohol_3),
-        measurement_image_3: row.measurement_image_3 || "",
+        measurement_image_3: normalizeText(row.measurement_image_3),
         measurement_image_3_public_id: "",
         operation_status_3: normalizeText(row.operation_status_3),
         handover_contact_3: normalizeText(row.handover_contact_3),
         instructions_3: normalizeArray(row.instructions_3),
         other_items_3: normalizeText(row.other_items_3),
         executor_3: normalizeText(row.executor_3),
-    };
-}
-
-async function enrichRowWithUploadedImages(row) {
-    const folder = `driver-rollcall/${row.record_date_key}/${row.record_key}`;
-
-    const [
-        measurement1,
-        call1,
-        measurement2,
-        measurement3,
-    ] = await Promise.all([
-        uploadImageToCloudinary(row.measurement_image_1, folder, "measurement_image_1"),
-        uploadImageToCloudinary(row.call_image_1, folder, "call_image_1"),
-        uploadImageToCloudinary(row.measurement_image_2, folder, "measurement_image_2"),
-        uploadImageToCloudinary(row.measurement_image_3, folder, "measurement_image_3"),
-    ]);
-
-    return {
-        ...row,
-        measurement_image_1: measurement1.url,
-        measurement_image_1_public_id: measurement1.public_id,
-
-        call_image_1: call1.url,
-        call_image_1_public_id: call1.public_id,
-
-        measurement_image_2: measurement2.url,
-        measurement_image_2_public_id: measurement2.public_id,
-
-        measurement_image_3: measurement3.url,
-        measurement_image_3_public_id: measurement3.public_id,
     };
 }
 
@@ -193,23 +132,9 @@ export async function POST(request) {
         const chunks = chunkArray(normalizedRows, CHUNK_SIZE);
 
         let inserted = 0;
-        let uploaded_images = 0;
 
-        for (const rawChunk of chunks) {
-            const uploadedChunk = await Promise.all(
-                rawChunk.map(enrichRowWithUploadedImages)
-            );
-
-            uploaded_images += uploadedChunk.reduce((sum, row) => {
-                let c = 0;
-                if (row.measurement_image_1) c += 1;
-                if (row.call_image_1) c += 1;
-                if (row.measurement_image_2) c += 1;
-                if (row.measurement_image_3) c += 1;
-                return sum + c;
-            }, 0);
-
-            const payload = JSON.stringify(uploadedChunk);
+        for (const chunk of chunks) {
+            const payload = JSON.stringify(chunk);
 
             const result = await sql`
         WITH input_rows AS (
@@ -398,7 +323,6 @@ export async function POST(request) {
             skipped_invalid,
             inserted,
             skipped_duplicate: normalizedRows.length - inserted,
-            uploaded_images,
         });
     } catch (err) {
         console.error("POST /api/driver-rollcall error:", err);
