@@ -115,8 +115,8 @@ function normalizeRow(row) {
         measurement_image_3: row.measurement_image_3 || "",
         measurement_image_3_public_id: "",
         operation_status_3: normalizeText(row.operation_status_3),
-        handover_contact_3: normalizeArray(row.handover_contact_3),
-        instructions_3: normalizeText(row.instructions_3),
+        handover_contact_3: normalizeText(row.handover_contact_3),
+        instructions_3: normalizeArray(row.instructions_3),
         other_items_3: normalizeText(row.other_items_3),
         executor_3: normalizeText(row.executor_3),
     };
@@ -262,8 +262,8 @@ export async function POST(request) {
             measurement_image_3 text,
             measurement_image_3_public_id text,
             operation_status_3 text,
-            handover_contact_3 jsonb,
-            instructions_3 text,
+            handover_contact_3 text,
+            instructions_3 jsonb,
             other_items_3 text,
             executor_3 text
           )
@@ -373,8 +373,8 @@ export async function POST(request) {
             measurement_image_3,
             measurement_image_3_public_id,
             operation_status_3,
-            COALESCE(handover_contact_3, '[]'::jsonb),
-            instructions_3,
+            handover_contact_3,
+            COALESCE(instructions_3, '[]'::jsonb),
             other_items_3,
             executor_3,
 
