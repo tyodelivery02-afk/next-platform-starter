@@ -19,8 +19,6 @@ export function FloatingCharacter() {
   useEffect(() => {
     setIndex(0);
     setShowBubble(true);
-    // 路径变化时，如果处于折叠状态，通常应该展开，除非你希望它保持折叠
-    // setCollapsed(false); // 这一行根据产品需求可以添加或不加
   }, [pathname]);
 
   // 点击角色图片时切换到下一条消息
@@ -35,9 +33,6 @@ export function FloatingCharacter() {
   // 保持顶层容器固定定位
   return (
     <div className="fixed bottom-8 text-black right-1 z-50 flex flex-col items-end">
-      {/* ✅ 改进点 1: 折叠后的小图标 (单独处理，不包含在主内容区域内)
-        它始终位于最外层容器的右下角，因此不会被主内容区域的 CSS 转换影响。
-      */}
       {collapsed && (
         <button
           onClick={() => setCollapsed(false)}
@@ -45,7 +40,7 @@ export function FloatingCharacter() {
                      hover:scale-105 transition active:scale-95"
         >
           <Image
-            src="/images/girl.svg"
+            src="/images/Q2.png"
             alt="open"
             width={32}
             height={32}
@@ -54,26 +49,11 @@ export function FloatingCharacter() {
         </button>
       )}
 
-      {/* 主内容区域 (角色、气泡、关闭按钮) 
-        
-        改进点 2: 
-        当 `collapsed` 为 true 时，使用 `hidden` 类 (Tailwind CSS) 
-        或者设置 `pointer-events-none` 配合 `opacity-0` 来完全禁用交互。
-        
-        由于你使用了过渡效果，我推荐使用 `pointer-events-none` 配合 `opacity-0` 
-        和 `max-height: 0` (如果组件高度可变)。
-        
-        你原来的 `translate-x-[200%] opacity-0` 已经能在视觉上隐藏并**大致**消除交互，
-        但如果气泡很大，它的边界可能还会影响页面。
-        
-        为了确保不占空间和不影响交互，我们增加一个条件渲染：
-      */}
       {!collapsed && (
         <div
           className={`
             flex flex-col items-center transition-all duration-300
             ${
-              // 保持原有的过渡效果，但只在未折叠状态下渲染此 div
               !collapsed ? "translate-x-0 opacity-100" : ""
             }
           `}
@@ -92,7 +72,7 @@ export function FloatingCharacter() {
             onClick={handleClick}
           >
             <Image
-              src="/images/girl.svg"
+              src="/images/Q.png"
               alt="assistant"
               width={100}
               height={100}
