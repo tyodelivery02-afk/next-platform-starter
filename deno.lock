@@ -11,6 +11,7 @@
   "workspace": {
     "packageJson": {
       "dependencies": [
+        "npm:@google/genai@^1.46.0",
         "npm:@neondatabase/serverless@^1.0.2",
         "npm:@netlify/blobs@^8.2.0",
         "npm:@netlify/neon@0.1",
@@ -23,6 +24,7 @@
         "npm:bright@~0.8.5",
         "npm:chart.js@^4.5.1",
         "npm:chartjs-plugin-datalabels@^2.2.0",
+        "npm:cloudinary@^2.9.0",
         "npm:csv-parser@^3.2.0",
         "npm:d3-geo@^3.1.1",
         "npm:d3-selection@3",

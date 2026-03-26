@@ -273,6 +273,11 @@
         @apply px-4 py-2 rounded-lg bg-sky-400 hover:bg-sky-500 text-white font-semibold shadow-md hover:shadow-yellow-400 transition-all duration-300
     }
 
+    /* 送信按钮样式 */
+    .send-button {
+        @apply px-4 py-2 rounded-lg bg-pink-400 hover:bg-pink-500 text-white font-semibold shadow-md hover:shadow-yellow-400 transition-all duration-300
+    }
+
     /* 其他按钮样式 */
     .orther-button {
         @apply px-4 py-2 rounded-lg text-white font-semibold shadow-md hover:shadow-yellow-400 bg-yellow-600 hover:bg-yellow-700 transition-all duration-300

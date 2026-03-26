@@ -107,47 +107,115 @@ export default function Page() {
     const file = e.target.files[0];
     if (!file) return;
 
+    const isZip7 = (value) => /^\d{7}$/.test(String(value ?? '').trim());
+
+    const isHeaderRow = (cols) =>
+      cols.some(v => String(v ?? '').replace(/^\uFEFF/, '').trim().includes('分拣码'));
+
+    const shouldSkipRow = (cols) => {
+      const values = cols.map(v => String(v ?? '').trim());
+      return isHeaderRow(values);
+    };
+
+    const normalizeToFirst3UsefulCols = (cols) => {
+      const cleaned = cols
+        .map(v => String(v ?? '').replace(/^\uFEFF/, '').trim())
+        .filter(v => v !== '');
+
+      // 跳过邮编列（7位数字）
+      const withoutZip = cleaned.filter(v => !isZip7(v));
+
+      return {
+        col1: withoutZip[0] || '',
+        col2: withoutZip[1] || '',
+        col3: withoutZip[2] || '',
+      };
+    };
+
+    const buildAreaCandidates = (areaName) => {
+      const raw = String(areaName ?? '').trim();
+      if (!raw) return [];
+
+      const candidates = [raw];
+      const gunIndex = raw.indexOf('郡');
+
+      // 例：西多摩郡日の出町 -> 日の出町
+      if (gunIndex !== -1 && gunIndex < raw.length - 1) {
+        const shortened = raw.slice(gunIndex + 1).trim();
+        if (shortened && !candidates.includes(shortened)) {
+          candidates.push(shortened);
+        }
+      }
+
+      return candidates;
+    };
+
     try {
       let rows = [];
 
-      if (file.name.endsWith('.csv')) {
+      if (file.name.toLowerCase().endsWith('.csv')) {
         const text = await file.text();
-        const lines = text.split('\n').filter(l => l.trim());
-        rows = lines.map(line => {
-          // Handle quoted CSV fields
-          const cols = [];
-          let current = '';
-          let inQuotes = false;
-          for (let i = 0; i < line.length; i++) {
-            if (line[i] === '"') { inQuotes = !inQuotes; }
-            else if (line[i] === ',' && !inQuotes) { cols.push(current.trim()); current = ''; }
-            else { current += line[i]; }
-          }
-          cols.push(current.trim());
-          return { col1: cols[0] || '', col2: cols[1] || '', col3: cols[2] || '' };
-        });
+        const lines = text.split(/\r?\n/).filter(l => l.trim());
+
+        rows = lines
+          .map(line => {
+            const cols = [];
+            let current = '';
+            let inQuotes = false;
+
+            for (let i = 0; i < line.length; i++) {
+              const ch = line[i];
+              const next = line[i + 1];
+
+              if (ch === '"') {
+                if (inQuotes && next === '"') {
+                  current += '"';
+                  i++;
+                } else {
+                  inQuotes = !inQuotes;
+                }
+              } else if (ch === ',' && !inQuotes) {
+                cols.push(current.trim());
+                current = '';
+              } else {
+                current += ch;
+              }
+            }
+
+            cols.push(current.trim());
+            return cols;
+          })
+          .filter(cols => Array.isArray(cols) && cols.length >= 3)
+          .filter(cols => !shouldSkipRow(cols))
+          .map(cols => normalizeToFirst3UsefulCols(cols))
+          .filter(r => r.col1 && r.col2 && r.col3);
       } else {
-        // XLSX
+        // XLSX / XLS
         const XLSX = await import('xlsx');
         const arrayBuffer = await file.arrayBuffer();
         const workbook = XLSX.read(arrayBuffer, { type: 'array' });
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
         const data = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-        rows = data.filter(r => r && r.length >= 3).map(r => ({
-          col1: String(r[0] ?? ''),
-          col2: String(r[1] ?? ''),
-          col3: String(r[2] ?? ''),
-        }));
+
+        rows = data
+          .filter(r => Array.isArray(r) && r.length >= 3)
+          .filter(r => !shouldSkipRow(r))
+          .map(r => normalizeToFirst3UsefulCols(r))
+          .filter(r => r.col1 && r.col2 && r.col3);
       }
 
       // Extract last segment after final '-' from col1
-      const parsed = rows
-        .filter(r => r.col1 && r.col2 && r.col3)
-        .map(r => {
-          const parts = r.col1.split('-');
-          const colorKey = parts[parts.length - 1];
-          return { colorKey, prefName: r.col2, areaName: r.col3 };
-        });
+      const parsed = rows.map(r => {
+        const parts = r.col1.split('-');
+        const colorKey = (parts[parts.length - 1] || '').trim();
+
+        return {
+          colorKey,
+          prefName: r.col2.trim(),
+          areaName: r.col3.trim(),
+          areaCandidates: buildAreaCandidates(r.col3),
+        };
+      });
 
       const keys = [...new Set(parsed.map(r => r.colorKey))].sort();
 
@@ -156,7 +224,9 @@ export default function Page() {
       setImportColorMapping({});
       setShowImportModal(true);
     } catch (err) {
-      warningRef.current?.open({ message: 'ファイルの読み込みに失敗しました: ' + err.message });
+      warningRef.current?.open({
+        message: 'ファイルの読み込みに失敗しました: ' + err.message
+      });
     }
 
     e.target.value = '';
@@ -172,11 +242,15 @@ export default function Page() {
     try {
       // Group areas by prefecture name
       const prefGroups = {};
-      importRawData.forEach(({ colorKey, prefName, areaName }) => {
+      importRawData.forEach(({ colorKey, prefName, areaName, areaCandidates }) => {
         const colorId = importColorMapping[colorKey];
         if (!colorId) return;
         if (!prefGroups[prefName]) prefGroups[prefName] = [];
-        prefGroups[prefName].push({ areaName, colorId });
+        prefGroups[prefName].push({
+          areaName,
+          areaCandidates: areaCandidates || [areaName],
+          colorId
+        });
       });
 
       const newSelectedAreas = [...selectedAreas];
@@ -186,10 +260,20 @@ export default function Page() {
         const pref = prefectures.find(p => p.name === prefName);
         if (!pref) {
           console.warn('都道府県が見つかりません:', prefName);
+          areas.forEach(({ areaName }) => {
+            errors.push({ prefName, areaName });
+          });
           continue;
         }
 
         const res = await fetch(`/maps/prefecture/${pref.code}.json`);
+        if (!res.ok) {
+          areas.forEach(({ areaName }) => {
+            errors.push({ prefName, areaName });
+          });
+          continue;
+        }
+
         const geoData = await res.json();
 
         let features = [];
@@ -198,28 +282,44 @@ export default function Page() {
           features = geoData.features;
         } else if (geoData.objects) {
           const objectKey = Object.keys(geoData.objects)[0];
-          features = geoData.objects[objectKey].geometries || [];
+          features = geoData.objects[objectKey]?.geometries || [];
         } else {
           console.warn("構造不明:", prefName);
+          areas.forEach(({ areaName }) => {
+            errors.push({ prefName, areaName });
+          });
           continue;
         }
 
-        // Build name → code map (deduplicated by first occurrence)
+        // Build name -> code map
         const nameToCode = {};
         features.forEach(feature => {
           const props = feature.properties || {};
           const name = props.N03_004 || props.N03_003 || props.N03_002 || props.N03_001;
           const code = props.N03_007;
-          if (name && code && !nameToCode[name]) nameToCode[name] = code;
+          if (name && code && !nameToCode[name]) {
+            nameToCode[name] = code;
+          }
         });
 
-        areas.forEach(({ areaName, colorId }) => {
-          const code = nameToCode[areaName];
+        areas.forEach(({ areaName, areaCandidates, colorId }) => {
+          let code = null;
+
+          for (const candidate of (areaCandidates || [areaName])) {
+            if (nameToCode[candidate]) {
+              code = nameToCode[candidate];
+              break;
+            }
+          }
+
           if (!code) {
             errors.push({ prefName, areaName });
             return;
           }
-          if (!newSelectedAreas.includes(code)) newSelectedAreas.push(code);
+
+          if (!newSelectedAreas.includes(code)) {
+            newSelectedAreas.push(code);
+          }
           newAreaColors[code] = colorId;
         });
       }
@@ -228,6 +328,7 @@ export default function Page() {
       setAreaColors(newAreaColors);
       setImportErrors(errors);
       await reloadPopulationAfterLoad(newSelectedAreas, selectedPref);
+
       if (errors.length > 0) {
         setShowImportResultModal(true);
       } else {
