@@ -15,7 +15,7 @@ export function FloatingCharacter() {
   const [messages, setMessages] = useState([
     {
       role: "model",
-      text: "やっほー",
+      text: "やっほー、なにしとるん？",
     },
   ]);
 
@@ -84,7 +84,7 @@ export function FloatingCharacter() {
           className="w-12 h-12 rounded-full bg-white shadow flex items-center justify-center hover:scale-105 transition active:scale-95"
         >
           <Image
-            src="/images/girl.svg"
+            src="/images/girl-afro.svg"
             alt="open"
             width={32}
             height={32}
@@ -160,7 +160,7 @@ export function FloatingCharacter() {
               onClick={() => setChatOpen((prev) => !prev)}
             >
               <Image
-                src="/images/girl.svg"
+                src="/images/girl-afro.svg"
                 alt="assistant"
                 width={100}
                 height={100}
