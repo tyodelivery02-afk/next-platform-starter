@@ -40,6 +40,8 @@ export default function Page() {
   const currentPrefRef = useRef(null);
   const alertRef = useRef();
   const warningRef = useRef();
+  const [latestDbColorNames, setLatestDbColorNames] = useState({});
+  const [importEditableColorNames, setImportEditableColorNames] = useState({});
 
   // 颜色相关状态
   const [areaColors, setAreaColors] = useState({});
@@ -100,6 +102,18 @@ export default function Page() {
     if (!selectedPref) return null;
     const pref = prefectures.find(p => p.code === selectedPref);
     return pref ? pref.name : null;
+  };
+
+  const fetchLatestImportColorNames = async () => {
+    try {
+      const response = await fetch('/api/population/map/color-config/latest');
+      const result = await response.json();
+      if (!result.success) return {};
+      return result.colorNames || {};
+    } catch (error) {
+      console.warn('最新色名取得失敗:', error);
+      return {};
+    }
   };
 
   // ファイルインポート処理
@@ -219,9 +233,20 @@ export default function Page() {
 
       const keys = [...new Set(parsed.map(r => r.colorKey))].sort();
 
+      const latestNames = await fetchLatestImportColorNames();
+
+      const initialMapping = keys.reduce((acc, key) => {
+        if (Object.prototype.hasOwnProperty.call(colorPalette, key)) {
+          acc[key] = key;
+        }
+        return acc;
+      }, {});
+
       setImportRawData(parsed);
       setUniqueColorKeys(keys);
-      setImportColorMapping({});
+      setLatestDbColorNames(latestNames);
+      setImportEditableColorNames(latestNames);
+      setImportColorMapping(initialMapping);
       setShowImportModal(true);
     } catch (err) {
       warningRef.current?.open({
@@ -324,6 +349,17 @@ export default function Page() {
         });
       }
 
+      const nextColorNames = { ...colorNames };
+      const usedColorIds = [...new Set(Object.values(importColorMapping).filter(Boolean))];
+
+      usedColorIds.forEach((colorId) => {
+        const editedName = String(importEditableColorNames[colorId] ?? "").trim();
+        if (editedName) {
+          nextColorNames[colorId] = editedName;
+        }
+      });
+
+      setColorNames(nextColorNames);
       setSelectedAreas(newSelectedAreas);
       setAreaColors(newAreaColors);
       setImportErrors(errors);
@@ -853,6 +889,63 @@ export default function Page() {
     setColorStats(stats);
   }, [selectedAreas, populationData, prefMuniMapping, areaColors]);
 
+  const getRingArea = (ring = []) => {
+    if (!Array.isArray(ring) || ring.length < 3) return 0;
+
+    let sum = 0;
+    for (let i = 0; i < ring.length - 1; i++) {
+      const [x1, y1] = ring[i];
+      const [x2, y2] = ring[i + 1];
+      sum += x1 * y2 - x2 * y1;
+    }
+    return Math.abs(sum) / 2;
+  };
+
+  const simplifyRingPoints = (ring = [], pointStep = 1) => {
+    if (!Array.isArray(ring) || ring.length <= 8 || pointStep <= 1) return ring;
+
+    const isClosed =
+      ring.length > 1 &&
+      ring[0][0] === ring[ring.length - 1][0] &&
+      ring[0][1] === ring[ring.length - 1][1];
+
+    const points = isClosed ? ring.slice(0, -1) : [...ring];
+
+    const simplified = points.filter((_, i) => {
+      return i === 0 || i === points.length - 1 || i % pointStep === 0;
+    });
+
+    if (simplified.length < 3) return ring;
+
+    if (isClosed) simplified.push([...simplified[0]]);
+    return simplified.length >= 4 ? simplified : ring;
+  };
+
+  const simplifyProjectedPolygons = (
+    polygons = [],
+    { minPolygonArea = 0, pointStep = 1 } = {}
+  ) => {
+    return polygons
+      .map((polygon) => {
+        const simplifiedRings = polygon
+          .map((ring) => simplifyRingPoints(ring, pointStep))
+          .filter((ring, ringIndex) => {
+            const area = getRingArea(ring);
+            return ringIndex === 0
+              ? area >= minPolygonArea
+              : area >= minPolygonArea * 0.5;
+          });
+
+        return simplifiedRings;
+      })
+      .filter((polygon) => polygon.length > 0);
+  };
+
+  const getPolygonArea = (polygon = []) => {
+    if (!Array.isArray(polygon) || !polygon.length) return 0;
+    return getRingArea(polygon[0] || []);
+  };
+
   const handleDownloadPPTX = async () => {
     if (!selectedPref) {
       warningRef.current?.open({ message: "先に都道府県地図を開いてください。" });
@@ -951,59 +1044,123 @@ export default function Page() {
       const slideScaleX = mapWidthEmu / renderWidth;
       const slideScaleY = mapHeightEmu / renderHeight;
 
-      const regionShapesXml = geojson.features.map((f, idx) => {
-        const polygons = extractProjectedPolygons(f, projection);
-        if (!polygons.length) return "";
+      const MAX_PPTX_SIZE = 400 * 1024;
 
-        const shiftedPolygons = polygons.map((polygon) =>
-          polygon.map((ring) =>
-            ring.map(([x, y]) => [
-              x + mapLeftEmu / slideScaleX,
-              y + mapTopEmu / slideScaleY,
-            ])
-          )
+      const compressionLevels = [
+        { minPolygonArea: 0, pointStep: 1 },
+        { minPolygonArea: 8, pointStep: 2 },
+        { minPolygonArea: 16, pointStep: 3 },
+        { minPolygonArea: 30, pointStep: 4 },
+        { minPolygonArea: 60, pointStep: 6 },
+        { minPolygonArea: 100, pointStep: 8 },
+      ];
+
+      const baseSlideXml = slideXml;
+      const spTreeCloseTag = "</p:spTree>";
+
+      let outBlob = null;
+      let finalBlobSize = 0;
+
+      for (const level of compressionLevels) {
+        const preparedFeatures = geojson.features
+          .map((f, idx) => {
+            const rawPolygons = extractProjectedPolygons(f, projection);
+            if (!rawPolygons.length) return null;
+
+            const simplifiedPolygons = simplifyProjectedPolygons(rawPolygons, level);
+            if (!simplifiedPolygons.length) return null;
+
+            const featureArea = simplifiedPolygons.reduce(
+              (sum, polygon) => sum + getPolygonArea(polygon),
+              0
+            );
+
+            return {
+              feature: f,
+              index: idx,
+              polygons: simplifiedPolygons,
+              featureArea,
+            };
+          })
+          .filter(Boolean);
+
+        const regionShapesXml = preparedFeatures
+          .map(({ feature, index, polygons }) => {
+            const shiftedPolygons = polygons.map((polygon) =>
+              polygon.map((ring) =>
+                ring.map(([x, y]) => [
+                  x + mapLeftEmu / slideScaleX,
+                  y + mapTopEmu / slideScaleY,
+                ])
+              )
+            );
+
+            return buildRegionShapeXml({
+              feature,
+              polygons: shiftedPolygons,
+              index,
+              slideScaleX,
+              slideScaleY,
+              getFeatureFillHex,
+            });
+          })
+          .join("");
+
+        const shownNames = new Set();
+
+        const labelShapesXml = preparedFeatures
+          .map(({ feature, index }) => {
+            const meta = getFeatureMeta(feature);
+            const name = meta.name;
+
+            if (!name) return "";
+            if (shownNames.has(name)) return "";
+
+            shownNames.add(name);
+
+            return buildLabelShapeXml({
+              feature,
+              projection,
+              slideScaleX,
+              slideScaleY,
+              offsetXPx: mapLeftEmu / slideScaleX,
+              offsetYPx: mapTopEmu / slideScaleY,
+              index,
+            });
+          })
+          .join("");
+
+        const updatedSlideXml = baseSlideXml.replace(
+          spTreeCloseTag,
+          `${regionShapesXml}${labelShapesXml}${spTreeCloseTag}`
         );
 
-        return buildRegionShapeXml({
-          feature: f,
-          polygons: shiftedPolygons,
-          index: idx,
-          slideScaleX,
-          slideScaleY,
-          getFeatureFillHex,
+        zip.file(slidePath, updatedSlideXml);
+
+        const candidateBlob = await zip.generateAsync({
+          type: "blob",
+          compression: "DEFLATE",
+          compressionOptions: { level: 9 },
         });
-      }).join("");
 
-      const shownNames = new Set();
+        outBlob = candidateBlob;
+        finalBlobSize = candidateBlob.size;
 
-      const labelShapesXml = geojson.features.map((f, idx) => {
-        const meta = getFeatureMeta(f);
-        const name = meta.name;
+        if (candidateBlob.size <= MAX_PPTX_SIZE) {
+          break;
+        }
+      }
 
-        if (!name) return "";
-        if (shownNames.has(name)) return "";
-        shownNames.add(name);
+      if (!outBlob) {
+        throw new Error("PPTX生成に失敗しました");
+      }
 
-        return buildLabelShapeXml({
-          feature: f,
-          projection,
-          slideScaleX,
-          slideScaleY,
-          offsetXPx: mapLeftEmu / slideScaleX,
-          offsetYPx: mapTopEmu / slideScaleY,
-          index: idx,
-        });
-      }).join("");
+      if (finalBlobSize > MAX_PPTX_SIZE) {
+        throw new Error(
+          `圧縮後も400KBを超えています: ${Math.ceil(finalBlobSize / 1024)}KB`
+        );
+      }
 
-      const spTreeCloseTag = "</p:spTree>";
-      const updatedSlideXml = slideXml.replace(
-        spTreeCloseTag,
-        `${regionShapesXml}${labelShapesXml}${spTreeCloseTag}`
-      );
-
-      zip.file(slidePath, updatedSlideXml);
-
-      const outBlob = await zip.generateAsync({ type: "blob" });
       const url = URL.createObjectURL(outBlob);
       const a = document.createElement("a");
       const exportVersionName = currentVersionName?.trim() || versionName?.trim() || getSelectedPrefName() || selectedPref || "map";
@@ -1318,6 +1475,9 @@ export default function Page() {
         setImportColorMapping={setImportColorMapping}
         colorPalette={colorPalette}
         colorNames={colorNames}
+        latestDbColorNames={latestDbColorNames}
+        importEditableColorNames={importEditableColorNames}
+        setImportEditableColorNames={setImportEditableColorNames}
         onApply={handleApplyImport}
       />
       <ShowImportResultModal
