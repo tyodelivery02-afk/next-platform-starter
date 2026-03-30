@@ -239,8 +239,24 @@ export function buildLabelShapeXml({
     const xEmu = Math.round(xPx * slideScaleX);
     const yEmu = Math.round(yPx * slideScaleY);
 
-    const wEmu = Math.round(0.75 * EMU_PER_INCH);
-    const hEmu = Math.round(0.2 * EMU_PER_INCH);
+    const text = String(meta.name || "");
+    const PT_TO_EMU = 12700;
+    const fontSizePt = 7; // 因为 a:rPr 的 sz="700" = 7pt
+
+    const fullWidthCount = (text.match(/[\u3000-\u30FF\u3400-\u9FFF\uF900-\uFAFF]/g) || []).length;
+    const halfWidthCount = text.length - fullWidthCount;
+
+    // 日文/中文按接近全角宽度，英数按半角宽度估算
+    const textWidthPt =
+        fullWidthCount * fontSizePt * 1.02 +
+        halfWidthCount * fontSizePt * 0.56;
+
+    // 只保留极小边距，尽量贴合文字
+    const padXPt = 1.5;
+    const padYPt = 1;
+
+    const wEmu = Math.max(1, Math.round((textWidthPt + padXPt * 2) * PT_TO_EMU));
+    const hEmu = Math.max(1, Math.round((fontSizePt * 1.08 + padYPt * 2) * PT_TO_EMU));
 
     const leftEmu = xEmu - Math.round(wEmu / 2);
     const topEmu = yEmu - Math.round(hEmu / 2);
