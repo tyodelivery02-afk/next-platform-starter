@@ -7,31 +7,42 @@ export async function GET() {
   try {
     const rows = await sql`
       WITH latest_versions AS (
-        SELECT DISTINCT ON (split_part(version_name, '_', 1))
-          version_id,
-          version_name,
-          updated_at
-        FROM map_versions
-        ORDER BY
-          split_part(version_name, '_', 1),
-          updated_at DESC,
-          version_id DESC
-      )
-      SELECT DISTINCT
-        split_part(lv.version_name, '_', 1) AS version_key,
-        z.zip_code,
-        mcc.color_name,
-        z.prefecture_kanji,
-        z.city_kanji
-      FROM zipcode z
-      JOIN map_edit_data med
-        ON z.local_government_code = med.area_code
-      JOIN map_color_config mcc
-        ON med.color_id = mcc.color_id
-       AND med.version_id = mcc.version_id
-      JOIN latest_versions lv
-        ON med.version_id = lv.version_id
-      ORDER BY version_key, z.zip_code
+  SELECT DISTINCT ON (split_part(version_name, '_', 1))
+    version_id,
+    version_name,
+    updated_at
+  FROM map_versions
+  ORDER BY
+    split_part(version_name, '_', 1),
+    updated_at DESC,
+    version_id DESC
+),
+all_zipcodes AS (
+  SELECT
+    COALESCE(z.zip_code, jz.zip_code) AS zip_code,
+    COALESCE(z.local_government_code, jz.local_government_code) AS local_government_code,
+    COALESCE(z.prefecture_kanji, jz.office_name_kanji) AS prefecture_kanji,
+    COALESCE(z.city_kanji, jz.city_kanji) AS city_kanji
+  FROM zipcode z
+  FULL OUTER JOIN jigyosyo_zipcode jz
+    ON z.zip_code = jz.zip_code
+   AND z.local_government_code = jz.local_government_code
+)
+SELECT DISTINCT
+  split_part(lv.version_name, '_', 1) AS version_key,
+  az.zip_code,
+  mcc.color_name,
+  az.prefecture_kanji,
+  az.city_kanji
+FROM all_zipcodes az
+JOIN map_edit_data med
+  ON az.local_government_code = med.area_code
+JOIN map_color_config mcc
+  ON med.color_id = mcc.color_id
+ AND med.version_id = mcc.version_id
+JOIN latest_versions lv
+  ON med.version_id = lv.version_id
+ORDER BY version_key, az.zip_code
     `;
 
     const result = {};
