@@ -21,7 +21,7 @@ all_zipcodes AS (
   SELECT
     COALESCE(z.zip_code, jz.zip_code) AS zip_code,
     COALESCE(z.local_government_code, jz.local_government_code) AS local_government_code,
-    COALESCE(z.prefecture_kanji, jz.office_name_kanji) AS prefecture_kanji,
+    COALESCE(z.prefecture_kanji, jz.prefecture_kanji) AS prefecture_kanji,
     COALESCE(z.city_kanji, jz.city_kanji) AS city_kanji
   FROM zipcode z
   FULL OUTER JOIN jigyosyo_zipcode jz
