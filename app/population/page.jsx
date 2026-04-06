@@ -978,7 +978,7 @@ export default function Page() {
 
       const pptx = new pptxgen();
       pptx.layout = "LAYOUT_WIDE";
-      pptx.author = "池 鳴輝";
+      pptx.author = "池田 雄太";
       pptx.subject = "Prefecture map";
       pptx.title = `${getSelectedPrefName() || selectedPref} map`;
       pptx.company = "エスポリア配送部";
@@ -1001,12 +1001,30 @@ export default function Page() {
         }
       );
 
+      const exVersionName = currentVersionName?.trim() || versionName?.trim() || "";
+
+      console.log("exVersionName:"+exVersionName);
+
+      if (exVersionName) {
+        slide.addText(exVersionName, {
+          x: 0.5,
+          y: 0.9,
+          w: 2.8,
+          h: 0.22,
+          fontFace: "Noto Sans JP",
+          fontSize: 14,
+          bold: false,
+          color: "666666",
+          margin: 0,
+        });
+      }
+
       const legendItems = getUsedColorLegendItems();
 
       legendItems.forEach((item, idx) => {
         slide.addShape(pptx.ShapeType.rect, {
           x: 0.5,
-          y: 1.5 + idx * 0.24,
+          y: 1.8 + idx * 0.24,
           w: 0.16,
           h: 0.16,
           line: { color: "FFFFFF", pt: 0.7 },
@@ -1015,7 +1033,7 @@ export default function Page() {
 
         slide.addText(item.name, {
           x: 0.8,
-          y: 1.5 + idx * 0.24,
+          y: 1.8 + idx * 0.24,
           w: 2.3,
           h: 0.2,
           fontFace: "Noto Sans JP",
