@@ -1,68 +1,75 @@
 "use client";
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import Image from "next/image";
-import { Pie } from "react-chartjs-2";
-import { Chart as ChartJS, ArcElement, Tooltip, Legend } from "chart.js";
-import ChartDataLabels from "chartjs-plugin-datalabels";
-import { X, Triangle, Download } from "phosphor-react";
 import { downloadZipcodeCSV } from "../utils";
+import { ArrowLeft, X, Download } from "phosphor-react";
 
-ChartJS.register(ArcElement, Tooltip, Legend, ChartDataLabels);
+function HorizontalRatioBar({
+    label,
+    selected,
+    total,
+    color = "#38bdf8",
+    loading = false,
+    selectedLabel = "色付き",
+    totalLabel = "県合計",
+    unit = "",
+    view,
+    setView,
+    tabBtn,
+    children,
+}) {
+    const safeSelected = Number(selected || 0);
+    const safeTotal = Number(total || 0);
+    const percent = safeTotal > 0 ? Math.min(100, (safeSelected / safeTotal) * 100) : 0;
 
-function MiniPieChart({ selected, total, color, loading }) {
-    const rest = Math.max(0, total - selected);
-    const hasData = total > 0 && selected > 0;
-
-    const data = {
-        labels: ["色付き", "その他"],
-        datasets: [
-            {
-                data: hasData ? [selected, rest] : [0, 1],
-                backgroundColor: hasData ? [color, "#e5e7eb"] : ["#e5e7eb", "#e5e7eb"],
-                borderWidth: 2,
-                borderColor: "#fff",
-            },
-        ],
-    };
-
-    const options = {
-        responsive: true,
-        maintainAspectRatio: true,
-        animation: { duration: 400 },
-        plugins: {
-            legend: { display: false },
-            tooltip: {
-                callbacks: {
-                    title: () => "",
-                    label: (ctx) => {
-                        if (!hasData) return "データなし";
-                        const pct = ((ctx.raw / total) * 100).toFixed(1);
-                        return `${ctx.label}: ${pct}%`;
-                    },
-                },
-            },
-            datalabels: {
-                display: hasData,
-                color: "#000000",
-                font: { weight: "bold", size: 11 },
-                formatter: (value, ctx) => {
-                    const pct = ((value / total) * 100).toFixed(1);
-                    return ctx.dataIndex === 0 ? `${pct}%` : "";
-                },
-            },
-        },
+    const formatValue = (value) => {
+        if (loading) return "読み込み中...";
+        return `${value.toLocaleString()}${unit}`;
     };
 
     return (
-        <div className="flex flex-col items-center">
-            <div style={{ width: 120, height: 120, position: "relative" }}>
-                {loading ? (
-                    <div className="w-full h-full flex items-center justify-center">
-                        <div className="w-8 h-8 border-4 border-sky-300 border-t-transparent rounded-full animate-spin" />
-                    </div>
-                ) : (
-                    <Pie data={data} options={options} />
-                )}
+        <div className="table-details p-3 rounded-lg">
+            <div className="flex justify-between items-center gap-2 mb-2">
+                <span className="text-sm font-bold">{label}</span>
+
+                <div className="flex items-center gap-1">
+                    {children}
+
+                    {typeof view === "number" && typeof setView === "function" && (
+                        <>
+                            <button onClick={() => setView(0)} className={tabBtn(view === 0)}>
+                                県内
+                            </button>
+                            <button onClick={() => setView(1)} className={tabBtn(view === 1)}>
+                                全国
+                            </button>
+                        </>
+                    )}
+                </div>
+            </div>
+
+            <div className="flex justify-between items-center text-xs text-gray-600 mb-2">
+                <span>
+                    {selectedLabel}：{formatValue(safeSelected)}
+                </span>
+                <span>
+                    {totalLabel}：{formatValue(safeTotal)}
+                </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+                <div className="flex-1 h-4 bg-gray-200 rounded-full overflow-hidden">
+                    <div
+                        className="h-full rounded-full transition-all duration-300"
+                        style={{
+                            width: loading ? "35%" : `${percent}%`,
+                            backgroundColor: color,
+                        }}
+                    />
+                </div>
+
+                <span className="w-12 text-right text-xs font-semibold text-gray-600">
+                    {loading ? "…" : `${percent.toFixed(1)}%`}
+                </span>
             </div>
         </div>
     );
@@ -73,10 +80,11 @@ export default function PrefectureHoverTooltip({
     prefName,
     stats,
     position,
-    isVisible,
+    isVisible = true,
     onClose,
     onMouseEnter,
     onMouseLeave,
+    panelMode = false,
 }) {
     const [zipcodeStats, setZipcodeStats] = useState(null);
     const [zipcodeLoading, setZipcodeLoading] = useState(false);
@@ -418,7 +426,7 @@ export default function PrefectureHoverTooltip({
         };
     }, []);
 
-    if (!position) return null;
+    if (!panelMode && !position) return null;
 
     const {
         selectedPop = 0,
@@ -536,23 +544,41 @@ export default function PrefectureHoverTooltip({
             ref={tooltipRef}
             onMouseEnter={onMouseEnter}
             onMouseLeave={onMouseLeave}
-            style={{
-                position: "fixed",
-                left: adjustedPos.left,
-                top: adjustedPos.top,
-                width: TOOLTIP_W,
-                zIndex: 9999,
-                opacity: isVisible ? 1 : 0,
-                transform: isVisible ? "translateY(0px) scale(1)" : "translateY(6px) scale(0.97)",
-                transition: "opacity 0.2s ease, transform 0.2s ease",
-                pointerEvents: isVisible ? "auto" : "none",
-            }}
-            className="bg-white border-2 border-gray-300 rounded-xl shadow-xl overflow-hidden"
+            style={
+                panelMode
+                    ? {
+                        position: "relative",
+                        width: "100%",
+                        height: "100%",
+                        opacity: 1,
+                        pointerEvents: "auto",
+                    }
+                    : {
+                        position: "fixed",
+                        left: adjustedPos.left,
+                        top: adjustedPos.top,
+                        width: TOOLTIP_W,
+                        zIndex: 9999,
+                        opacity: isVisible ? 1 : 0,
+                        transform: isVisible
+                            ? "translateY(0px) scale(1)"
+                            : "translateY(6px) scale(0.97)",
+                        transition: "opacity 0.2s ease, transform 0.2s ease",
+                        pointerEvents: isVisible ? "auto" : "none",
+                    }
+            }
+            className={
+                panelMode
+                    ? "relative bg-white h-full overflow-y-auto"
+                    : "bg-white border-2 border-gray-300 rounded-xl shadow-xl overflow-hidden"
+            }
         >
             <div className="flex justify-between items-center px-4 py-3 border-b border-gray-100">
-                <h3 className="font-bold text-lg text-black">
-                    {prefName || `都道府県 ${prefCode}`}
-                </h3>
+                <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-lg ml-2 text-black">
+                        {prefName || `都道府県 ${prefCode}`}
+                    </h3>
+                </div>
 
                 <div className="flex items-center gap-2">
                     <button
@@ -564,9 +590,11 @@ export default function PrefectureHoverTooltip({
                         <Download size={24} weight="bold" />
                     </button>
 
-                    <button onClick={onClose} className="x-button">
-                        <X size={24} weight="bold" />
-                    </button>
+                    {!panelMode && (
+                        <button onClick={onClose} className="x-button">
+                            <X size={24} weight="bold" />
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -579,50 +607,55 @@ export default function PrefectureHoverTooltip({
 
             <div className="p-4 bg-sky-50 text-black">
                 {showCharts ? (
-                    <div className="grid grid-cols-4 gap-4 min-h-[430px]">
+                    <div className="flex flex-col gap-4 min-h-[430px]">
                         {(aEff !== null || nEff !== null || hEff !== null || popAggEff !== null || housingAggEff !== null || isAnyLoading) && (
-                            <div className="mt-2 p-2 grid grid-cols-6 gap-2 col-span-4">
-                                <div className="relative group flex flex-col table-details items-center col-span-2">
-                                    <span className="text-xs mb-1 mt-2">面積効率</span>
-                                    <span
-                                        className={`text-2xl font-bold ${aEff !== null
-                                            ? parseFloat(aEff) < 1
-                                                ? "text-slate-400"
-                                                : parseFloat(aEff) > 5
-                                                    ? "text-amber-500"
-                                                    : "text-emerald-500"
-                                            : "text-gray-300"
-                                            }`}
-                                    >
-                                        {aEff !== null ? aEff : isAnyLoading ? "…" : "—"}
-                                    </span>
+                            <div className="flex flex-col gap-2">
+                                <div className="relative group table-details px-3 py-2 rounded-lg">
+                                    <div className="flex items-center justify-between text-sm">
+                                        <span className="font-semibold text-gray-700">面積効率：</span>
+                                        <span
+                                            className={`font-bold ${aEff !== null
+                                                ? parseFloat(aEff) < 1
+                                                    ? "text-slate-400"
+                                                    : parseFloat(aEff) > 5
+                                                        ? "text-amber-500"
+                                                        : "text-emerald-500"
+                                                : "text-gray-300"
+                                                }`}
+                                        >
+                                            {aEff !== null ? aEff : isAnyLoading ? "…" : "—"}
+                                        </span>
+                                    </div>
+
                                     <div className="absolute bottom-full mb-2 hidden group-hover:block z-50">
                                         <div className="tip1 min-w-[280px]">
                                             <div className="inline-block text-center">
                                                 <div className="px-2 pb-1 border-b border-black">
-                                                    色付きエリアの人口数 / 都道府県総人口数
+                                                    色付きエリアの人口数 / 総人口数
                                                 </div>
                                                 <div className="px-2 pt-1">
-                                                    色付きエリアの面積 / 都道府県総面積
+                                                    色付きエリアの面積 / 総面積
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
-                                <div className="relative group flex flex-col table-details items-center col-span-2">
-                                    <span className="text-xs mb-1 mt-2">郵便番号効率</span>
-                                    <span
-                                        className={`text-2xl font-bold ${!zipcodeLoading && nEff !== null
-                                            ? parseFloat(nEff) < 1
-                                                ? "text-slate-400"
-                                                : parseFloat(nEff) > 5
-                                                    ? "text-amber-500"
-                                                    : "text-emerald-500"
-                                            : "text-gray-300"
-                                            }`}
-                                    >
-                                        {!zipcodeLoading && nEff !== null ? nEff : zipcodeLoading ? "…" : "—"}
-                                    </span>
+                                <div className="relative group table-details px-3 py-2 rounded-lg">
+                                    <div className="flex items-center justify-between text-sm">
+                                        <span className="font-semibold text-gray-700">郵便番号効率：</span>
+                                        <span
+                                            className={`font-bold ${!zipcodeLoading && nEff !== null
+                                                ? parseFloat(nEff) < 1
+                                                    ? "text-slate-400"
+                                                    : parseFloat(nEff) > 5
+                                                        ? "text-amber-500"
+                                                        : "text-emerald-500"
+                                                : "text-gray-300"
+                                                }`}
+                                        >
+                                            {!zipcodeLoading && nEff !== null ? nEff : zipcodeLoading ? "…" : "—"}
+                                        </span>
+                                    </div>
                                     <div className="absolute bottom-full mb-2 hidden group-hover:block z-50">
                                         <div className="tip1 min-w-[310px]">
                                             <div className="inline-block text-center">
@@ -636,22 +669,25 @@ export default function PrefectureHoverTooltip({
                                         </div>
                                     </div>
                                 </div>
-                                <div className="relative group flex flex-col table-details items-center col-span-2">
-                                    <span className="text-xs mb-1 mt-2">住宅効率</span>
-                                    <span
-                                        className={`text-2xl font-bold ${!housingLoading && hEff !== null
-                                            ? parseFloat(hEff) < 1
-                                                ? "text-slate-400"
-                                                : parseFloat(hEff) > 5
-                                                    ? "text-amber-500"
-                                                    : "text-emerald-500"
-                                            : "text-gray-300"
-                                            }`}
-                                    >
-                                        {!housingLoading && hEff !== null ? hEff : housingLoading ? "…" : "—"}
-                                    </span>
+                                <div className="relative group table-details px-3 py-2 rounded-lg">
+                                    <div className="flex items-center justify-between text-sm">
+                                        <span className="font-semibold text-gray-700">住宅効率：</span>
+                                        <span
+                                            className={`font-bold ${!housingLoading && hEff !== null
+                                                ? parseFloat(hEff) < 1
+                                                    ? "text-slate-400"
+                                                    : parseFloat(hEff) > 5
+                                                        ? "text-amber-500"
+                                                        : "text-emerald-500"
+                                                : "text-gray-300"
+                                                }`}
+                                        >
+                                            {!housingLoading && hEff !== null ? hEff : housingLoading ? "…" : "—"}
+                                        </span>
+                                    </div>
+
                                     <div className="absolute bottom-full mb-2 hidden group-hover:block z-50">
-                                        <div className="tip1 min-w-[280px]">
+                                        <div className="tip1 min-w-[310px]">
                                             <div className="inline-block text-center">
                                                 <div className="px-2 pb-1 border-b border-black">
                                                     色付きエリアの人口数 / 都道府県総人口数
@@ -663,23 +699,24 @@ export default function PrefectureHoverTooltip({
                                         </div>
                                     </div>
                                 </div>
-                                <div className="relative group flex flex-col table-details items-center col-span-3">
-                                    <span className="text-xs mb-1 mt-2">人口集約度</span>
-                                    <span
-                                        className={`text-2xl font-bold ${popAggEff !== null
-                                            ? parseFloat(popAggEff) < 1
-                                                ? "text-slate-400"
-                                                : parseFloat(popAggEff) > 1.5
-                                                    ? "text-amber-500"
-                                                    : "text-emerald-500"
-                                            : "text-gray-300"
-                                            }`}
-                                    >
-                                        {popAggEff !== null ? popAggEff : isAnyLoading ? "…" : "—"}
-                                    </span>
-
+                                <div className="relative group table-details px-3 py-2 rounded-lg">
+                                    <div className="flex items-center justify-between text-sm">
+                                        <span className="font-semibold text-gray-700">人口集約度：</span>
+                                        <span
+                                            className={`font-bold ${popAggEff !== null
+                                                ? parseFloat(popAggEff) < 1
+                                                    ? "text-slate-400"
+                                                    : parseFloat(popAggEff) > 1.5
+                                                        ? "text-amber-500"
+                                                        : "text-emerald-500"
+                                                : "text-gray-300"
+                                                }`}
+                                        >
+                                            {popAggEff !== null ? popAggEff : isAnyLoading ? "…" : "—"}
+                                        </span>
+                                    </div>
                                     <div className="absolute bottom-full mb-2 hidden group-hover:block z-50">
-                                        <div className="tip1 min-w-[260px]">
+                                        <div className="tip1 min-w-[310px]">
                                             <div className="inline-block text-center">
                                                 <div className="px-2 pb-1 border-b border-black">
                                                     色付きエリアの人口数 / 色付き面積
@@ -692,23 +729,24 @@ export default function PrefectureHoverTooltip({
                                     </div>
                                 </div>
 
-                                <div className="relative group flex flex-col table-details items-center col-span-3">
-                                    <span className="text-xs mb-1 mt-2">住宅集約度</span>
-                                    <span
-                                        className={`text-2xl font-bold ${housingAggEff !== null
-                                            ? parseFloat(housingAggEff) < 1
-                                                ? "text-slate-400"
-                                                : parseFloat(housingAggEff) > 1.5
-                                                    ? "text-amber-500"
-                                                    : "text-emerald-500"
-                                            : "text-gray-300"
-                                            }`}
-                                    >
-                                        {housingAggEff !== null ? housingAggEff : housingLoading ? "…" : "—"}
-                                    </span>
-
+                                <div className="relative group table-details px-3 py-2 rounded-lg">
+                                    <div className="flex items-center justify-between text-sm">
+                                        <span className="font-semibold text-gray-700">住宅集約度：</span>
+                                        <span
+                                            className={`font-bold ${housingAggEff !== null
+                                                ? parseFloat(housingAggEff) < 1
+                                                    ? "text-slate-400"
+                                                    : parseFloat(housingAggEff) > 1.5
+                                                        ? "text-amber-500"
+                                                        : "text-emerald-500"
+                                                : "text-gray-300"
+                                                }`}
+                                        >
+                                            {housingAggEff !== null ? housingAggEff : housingLoading ? "…" : "—"}
+                                        </span>
+                                    </div>
                                     <div className="absolute bottom-full mb-2 hidden group-hover:block z-50">
-                                        <div className="tip1 min-w-[260px]">
+                                        <div className="tip1 min-w-[310px]">
                                             <div className="inline-block text-center">
                                                 <div className="px-2 pb-1 border-b border-black">
                                                     色付きエリアの住宅数 / 色付き面積
@@ -723,197 +761,91 @@ export default function PrefectureHoverTooltip({
                             </div>
                         )}
 
-                        <div className="table-details p-2 flex flex-col items-center gap-2">
-                            <div className="flex items-center justify-between w-full">
-                                <span className="text-xs font-bold">人口</span>
-                                <div className="flex gap-1">
-                                    <button className={tabBtn(popView === 0)} onClick={() => setPopView(0)}>
-                                        県内
-                                    </button>
-                                    <button className={tabBtn(popView === 1)} onClick={() => setPopView(1)}>
-                                        全国
-                                    </button>
-                                </div>
-                            </div>
+                        <HorizontalRatioBar
+                            label="人口"
+                            selected={popChartSelected}
+                            total={popChartTotal}
+                            color="#38bdf8"
+                            loading={false}
+                            selectedLabel="色付き"
+                            totalLabel={popView === 0 ? "県合計" : "全国"}
+                            unit="人"
+                            view={popView}
+                            setView={setPopView}
+                            tabBtn={tabBtn}
+                        />
 
-                            <MiniPieChart
-                                selected={popChartSelected}
-                                total={popChartTotal}
-                                color="#38bdf8"
-                                loading={false}
-                            />
+                        <HorizontalRatioBar
+                            label="郵便番号"
+                            selected={zipSelected}
+                            total={zipTotal}
+                            color="#f97316"
+                            loading={zipcodeLoading}
+                            selectedLabel="色付き"
+                            totalLabel={zipView === 0 ? "県合計" : "全国"}
+                            unit="件"
+                            view={zipView}
+                            setView={setZipView}
+                            tabBtn={tabBtn}
+                        />
 
-                            <div className="w-full text-xs font-mono space-y-0.5">
-                                <div className="flex justify-between">
-                                    <span>色付き</span>
-                                    <span className="font-bold">{selectedPop.toLocaleString()} 人</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span>{popView === 0 ? "県合計" : "全国合計"}</span>
-                                    <span>{popChartTotal.toLocaleString()} 人</span>
-                                </div>
-                            </div>
-                        </div>
+                        <HorizontalRatioBar
+                            label="面積"
+                            selected={areaChartSelected}
+                            total={areaChartTotal}
+                            color="#22c55e"
+                            loading={false}
+                            selectedLabel="色付き"
+                            totalLabel={areaView === 0 ? "県合計" : "全国"}
+                            unit="ha"
+                            view={areaView}
+                            setView={setAreaView}
+                            tabBtn={tabBtn}
+                        />
 
-                        <div className="table-details p-2 flex flex-col items-center gap-2">
-                            <div className="flex items-center justify-between w-full">
-                                <span className="text-xs font-bold text-gray-600">郵便番号</span>
-                                <div className="flex gap-1">
-                                    <button className={tabBtn(zipView === 0)} onClick={() => setZipView(0)}>
-                                        県内
-                                    </button>
-                                    <button className={tabBtn(zipView === 1)} onClick={() => setZipView(1)}>
-                                        全国
-                                    </button>
-                                </div>
-                            </div>
-
-                            <MiniPieChart
-                                selected={zipSelected}
-                                total={zipTotal}
-                                color="#f59e0b"
-                                loading={zipcodeLoading}
-                            />
-
-                            <div className="w-full text-xs font-mono space-y-0.5">
-                                {zipcodeLoading ? (
-                                    <p className="text-center text-gray-400 animate-pulse">読み込み中...</p>
-                                ) : (
-                                    <>
-                                        <div className="flex justify-between">
-                                            <span>色付き</span>
-                                            <span className="font-bold">{zipSelected.toLocaleString()} 件</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span>{zipView === 0 ? "県合計" : "全国合計"}</span>
-                                            <span>{zipTotal.toLocaleString()} 件</span>
-                                        </div>
-                                    </>
-                                )}
-                            </div>
-                        </div>
-
-                        <div className="table-details p-2 flex flex-col items-center gap-2">
-                            <div className="flex items-center justify-between w-full">
-                                <span className="text-xs font-bold text-gray-600">面積</span>
-                                <div className="flex gap-1">
-                                    <button className={tabBtn(areaView === 0)} onClick={() => setAreaView(0)}>
-                                        県内
-                                    </button>
-                                    <button className={tabBtn(areaView === 1)} onClick={() => setAreaView(1)}>
-                                        全国
-                                    </button>
-                                </div>
-                            </div>
-
-                            <MiniPieChart
-                                selected={areaChartSelected}
-                                total={areaChartTotal}
-                                color="#a78bfa"
-                                loading={false}
-                            />
-
-                            <div className="w-full text-xs font-mono space-y-0.5">
-                                <div className="flex justify-between">
-                                    <span>色付き</span>
-                                    <span className="font-bold">{selectedArea.toLocaleString()} ha</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span>{areaView === 0 ? "県合計" : "全国合計"}</span>
-                                    <span>{areaChartTotal.toLocaleString()} ha</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="table-details p-2 flex flex-col items-center gap-2">
-                            <div className="flex items-start justify-between w-full gap-2">
-                                <span className="text-xs font-bold text-gray-600 pt-1">住宅</span>
-
-                                <div className="flex items-center gap-1 flex-wrap justify-end">
-                                    <button className={tabBtn(housingView === 0)} onClick={() => setHousingView(0)}>
-                                        県内
-                                    </button>
-                                    <button className={tabBtn(housingView === 1)} onClick={() => setHousingView(1)}>
-                                        全国
-                                    </button>
-
-                                    <div ref={housingMenuRef} className="relative">
-                                        <button
-                                            type="button"
-                                            onClick={() => setHousingMenuOpen((prev) => !prev)}
-                                            className={`relative w-5 h-5 rounded group flex items-center justify-center text-white bg-sky-700 shadow-md transition-all duration-300
-            hover:bg-sky-800 hover:shadow-yellow-400
-            ${housingMenuOpen ? "bg-sky-800 shadow-yellow-400" : ""}`}
-                                            title="住宅属性を選択"
-                                        >
-                                            <Triangle
-                                                size={12}
-                                                weight="bold"
-                                                style={{
-                                                    transform: housingMenuOpen ? "rotate(90deg)" : "scaleY(-1)",
-                                                    transition: "transform 0.2s ease",
-                                                }}
-                                            />
-                                        </button>
-
-                                        <div
-                                            className={`absolute right-full top-1/2 -translate-y-1/2 mr-2 z-30 origin-right transition-all duration-200
-            ${housingMenuOpen ? "opacity-100 scale-100 pointer-events-auto" : "opacity-0 scale-95 pointer-events-none"}`}
-                                        >
-                                            <div className="min-w-[180px] max-h-64 overflow-y-auto bg-white/95 backdrop-blur-sm border border-sky-200 shadow-xl
-                        rounded-l-[28px] rounded-tr-[10px] rounded-br-[28px] p-2">
-                                                <div className="flex flex-col gap-1">
-                                                    {housingMetricOptions.map((opt) => {
-                                                        const active = housingMetric === opt.value;
-
-                                                        return (
-                                                            <button
-                                                                key={opt.value}
-                                                                type="button"
-                                                                onClick={() => {
-                                                                    setHousingMetric(opt.value);
-                                                                    setHousingMenuOpen(false);
-                                                                }}
-                                                                className={`text-left text-xs px-3 py-2 rounded-xl transition-all duration-150
-                                ${active
-                                                                        ? "bg-sky-500 text-white font-semibold shadow-sm"
-                                                                        : "text-black hover:bg-yellow-200"
-                                                                    }`}
-                                                            >
-                                                                {opt.label}
-                                                            </button>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <MiniPieChart
+                        <div className="relative" ref={housingMenuRef}>
+                            <HorizontalRatioBar
+                                label={`住宅：${housingMetricOptions.find((item) => item.value === housingMetric)?.label || "全住房"}`}
                                 selected={housingSelected}
                                 total={housingTotal}
-                                color="#10b981"
+                                color="#a855f7"
                                 loading={housingLoading}
-                            />
+                                selectedLabel="色付き"
+                                totalLabel={housingView === 0 ? "県合計" : "全国"}
+                                unit="戸"
+                                view={housingView}
+                                setView={setHousingView}
+                                tabBtn={tabBtn}
+                            >
+                                <button
+                                    type="button"
+                                    onClick={() => setHousingMenuOpen((prev) => !prev)}
+                                    className="px-2 py-0.5 rounded text-xs font-semibold select-button"
+                                >
+                                    属性
+                                </button>
+                            </HorizontalRatioBar>
 
-                            <div className="w-full text-xs font-mono space-y-0.5">
-                                {housingLoading ? (
-                                    <p className="text-center text-gray-400 animate-pulse">読み込み中...</p>
-                                ) : (
-                                    <>
-                                        <div className="flex justify-between">
-                                            <span>色付き</span>
-                                            <span className="font-bold">{housingSelected.toLocaleString()} 件</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span>{housingView === 0 ? "県合計" : "全国合計"}</span>
-                                            <span>{housingTotal.toLocaleString()} 件</span>
-                                        </div>
-                                    </>
-                                )}
-                            </div>
+                            {housingMenuOpen && (
+                                <div className="absolute right-0 bottom-full mb-2 z-50 w-44 rounded-lg border border-gray-200 bg-white shadow-lg p-1">
+                                    {housingMetricOptions.map((option) => (
+                                        <button
+                                            key={option.value}
+                                            type="button"
+                                            onClick={() => {
+                                                setHousingMetric(option.value);
+                                                setHousingMenuOpen(false);
+                                            }}
+                                            className={`w-full text-left px-3 py-1.5 rounded text-xs ${housingMetric === option.value
+                                                ? "bg-sky-100 text-sky-700 font-bold"
+                                                : "hover:bg-gray-100 text-gray-700"
+                                                }`}
+                                        >
+                                            {option.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </div>
                 ) : hasSelection && !housingLoadedOnce && isAnyLoading ? (
@@ -922,19 +854,39 @@ export default function PrefectureHoverTooltip({
                         <p className="text-sm text-gray-500">統計データを読み込み中...</p>
                     </div>
                 ) : (
-                    <div className="table-details min-h-[430px] relative overflow-hidden p-[3px]">
-                        <div className="relative w-full h-full min-h-[424px]">
-                            <Image
-                                src="/images/wagayuku.jpg"
-                                alt="未選択"
-                                fill
-                                className="object-cover opacity-90 rounded-[inherit]"
-                                sizes="720px"
-                                priority={false}
-                            />
-                            <p className="absolute bottom-0 left-0 right-0 z-10 text-5xl text-white text-center py-2 bg-black/35 backdrop-blur-[1px]">
-                                我が征くは星の大海
-                            </p>
+                    <div className="flex flex-col gap-3 min-h-[430px]">
+                        <div className="flex flex-col gap-3 min-h-[430px]">
+                            <div className="table-details p-3 rounded-lg flex items-center justify-between">
+                                <span className="text-sm font-semibold text-gray-600">総人口：</span>
+                                <span className="text-lg font-bold">
+                                    {Number(totalPrefPop || 0).toLocaleString()} 人
+                                </span>
+                            </div>
+
+                            <div className="table-details p-3 rounded-lg flex items-center justify-between">
+                                <span className="text-sm font-semibold text-gray-600">郵便番号：</span>
+                                <span className="text-lg font-bold">
+                                    {zipcodeLoading
+                                        ? "読み込み中..."
+                                        : `${Number(prefTotalZipcodes || 0).toLocaleString()} 個`}
+                                </span>
+                            </div>
+
+                            <div className="table-details p-3 rounded-lg flex items-center justify-between">
+                                <span className="text-sm font-semibold text-gray-600">総面積：</span>
+                                <span className="text-lg font-bold">
+                                    {Number(totalPrefArea || 0).toLocaleString()} ha
+                                </span>
+                            </div>
+
+                            <div className="table-details p-3 rounded-lg flex items-center justify-between">
+                                <span className="text-sm font-semibold text-gray-600">住宅総数：</span>
+                                <span className="text-lg font-bold">
+                                    {housingLoading
+                                        ? "読み込み中..."
+                                        : `${Number(housingStats?.pref?.totalHousing || 0).toLocaleString()} 戸`}
+                                </span>
+                            </div>
                         </div>
                     </div>
                 )}

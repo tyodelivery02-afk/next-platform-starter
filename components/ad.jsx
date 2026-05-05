@@ -84,7 +84,7 @@ export function FloatingCharacter() {
           className="w-12 h-12 rounded-full bg-white shadow flex items-center justify-center hover:scale-105 transition active:scale-95"
         >
           <Image
-            src="/images/nmbmisaki.png"
+            src="/images/misaki.png"
             alt="open"
             width={32}
             height={32}
@@ -160,7 +160,7 @@ export function FloatingCharacter() {
               onClick={() => setChatOpen((prev) => !prev)}
             >
               <Image
-                src="/images/nmbmisaki.png"
+                src="/images/misaki.png"
                 alt="assistant"
                 width={100}
                 height={100}

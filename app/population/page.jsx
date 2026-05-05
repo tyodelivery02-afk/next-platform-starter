@@ -12,7 +12,8 @@ import JSZip from "jszip";
 import SaveVersionModal from "components/saveVersionModal";
 import ShowImportResultModal from "components/showImportResultModal";
 import ShowImportModal from "components/showImportModal";
-import { TrashSimple, CloudArrowDown } from "phosphor-react";
+import { TrashSimple, CloudArrowDown, ArrowLeft } from "phosphor-react";
+import PrefectureHoverTooltip from "components/Prefecturehovertooltip";
 import { geoMercator } from "d3-geo";
 import {
   EMU_PER_INCH,
@@ -29,6 +30,7 @@ export default function Page() {
   const [populationData, setPopulationData] = useState({});
   const [totalPopulation, setTotalPopulation] = useState(0);
   const [selectedPref, setSelectedPref] = useState(null);
+  const [rightPanelPref, setRightPanelPref] = useState(null);
   const [nationalPopulation, setNationalPopulation] = useState(124885175);
   const [areaData, setAreaData] = useState({});       // code → km²
   const [nationalArea, setNationalArea] = useState(0); // 全国合計面積
@@ -821,6 +823,42 @@ export default function Page() {
     return muniColors.length > 0 ? "mixed" : null;
   };
 
+  const buildPrefStatsForPanel = (prefCode) => {
+    const nationalCode = prefCode + "000";
+    const prefSelectedCodes = selectedAreas.filter(code => code.substring(0, 2) === prefCode);
+    const isPrefLevel = prefSelectedCodes.includes(nationalCode);
+
+    let selectedPop = 0;
+    if (isPrefLevel) {
+      selectedPop = populationData[nationalCode] || 0;
+    } else {
+      prefSelectedCodes.forEach(code => { selectedPop += populationData[code] || 0; });
+    }
+
+    const totalPrefPop = populationData[nationalCode] || 0;
+    const muniCodes = prefMuniMapping[prefCode] || [];
+    const selectedAreaCount = isPrefLevel
+      ? muniCodes.length || 1
+      : prefSelectedCodes.filter(c => !c.endsWith("000")).length;
+
+    const allPrefAreaCodes = Object.keys(areaData).filter(c => c.startsWith(prefCode));
+    const totalPrefArea = allPrefAreaCodes.reduce((sum, c) => sum + (areaData[c] || 0), 0);
+    const selectedMuniCodes = prefSelectedCodes.filter(c => !c.endsWith("000"));
+    const selectedArea = selectedMuniCodes.reduce((sum, c) => sum + (areaData[c] || 0), 0);
+
+    return {
+      selectedPop,
+      totalPrefPop,
+      nationalPop: nationalPopulation,
+      selectedAreaCount,
+      totalAreaCount: muniCodes.length,
+      prefSelectedCodes: prefSelectedCodes.filter(c => !c.endsWith("000")),
+      selectedArea,
+      totalPrefArea,
+      nationalArea,
+    };
+  };
+
   const handleMapLoad = (payload) => {
     const geojson = payload?.geoJSON || payload;
     const projectionConfig = payload?.mapConfig || null;
@@ -834,6 +872,10 @@ export default function Page() {
 
     setMapGeoJSON(geojson);
     setMapProjectionConfig(projectionConfig);
+  };
+
+  const handleCloseRightPanelPref = () => {
+    setRightPanelPref(null);
   };
 
   const getFeatureFillHex = (feature) => {
@@ -1003,7 +1045,7 @@ export default function Page() {
 
       const exVersionName = currentVersionName?.trim() || versionName?.trim() || "";
 
-      console.log("exVersionName:"+exVersionName);
+      console.log("exVersionName:" + exVersionName);
 
       if (exVersionName) {
         slide.addText(exVersionName, {
@@ -1239,18 +1281,17 @@ export default function Page() {
         <div className="h-full w-full rounded-xl shadow-inner bg-white/30 p-2">
           {!selectedPref ? (
             <JapanMap
-              selectedAreas={selectedAreas}
-              onSelect={handleSelect}
+              onSelect={handlePrefectureSelect}
+              onPrefectureClick={setRightPanelPref}
               isPrefectureSelected={isPrefectureSelected}
               getPrefectureColor={getPrefectureColor}
-              areaColors={areaColors}
-              colorPalette={colorPalette}
+              onLoad={handleMapLoad}
+              selectedAreas={selectedAreas}
               populationData={populationData}
               prefMuniMapping={prefMuniMapping}
               nationalPopulation={nationalPopulation}
               areaData={areaData}
               nationalArea={nationalArea}
-              onLoad={handleMapLoad}
             />
           ) : (
             <PrefectureMap
@@ -1270,210 +1311,237 @@ export default function Page() {
         </div>
       </div>
 
-      <div className="w-full md:w-[420px] table-div bg-white overflow-y-auto">
-        <p className="text-sm text-gray-600 mb-2">
-          <span className="font-semibold text-gray-800">{selectedAreas.length}</span>個地域選択した
-        </p>
-
-        <div className="bg-yellow-100 p-4 mb-5 table-details">
-          <p className="text-3xl font-extrabold text-yellow-600">
-            約{" "}
-            <span className="font-semibold text-sky-600">
-              {totalPopulation.toLocaleString()}
-            </span>
-            人
-          </p>
-          <p className="text-3xl font-extrabold text-yellow-600">
-            全国人口の約{" "}
-            <span className="font-semibold text-sky-600">{populationRatio}%</span>
-          </p>
-        </div>
-
-        <details className="table-details mb-2">
-          <summary className="table-details-content">統計情報源</summary>
-          <div className="p-3 text-sm text-gray-700">
-            ・e-Stat 人口データ<br />
-            ・総務省統計局<br />
-            ・社会・人口統計体系<br />
-            ・A2301_住民基本台帳人口(総数)2023年度<br />
-            ・B1102_総面積（北方地域及び竹島を含む）【ｈａ】2023年度<br />
-          </div>
-        </details>
-
-        <details className="table-details">
-          <summary className="table-details-content">
-            保存したバージョン ({versions.length}/50)
-          </summary>
-
-          <ul className="mr-2 ml-1 mt-2 mb-2 space-y-2 max-h-[56vh] overflow-y-auto">
-            {versions.length === 0 && (
-              <li className="w-full text-center py-4 text-gray-500">
-                保存されたバージョンはありません
-              </li>
-            )}
-
-            {versions.map((version) => (
-              <li key={version.id}>
-                <div
-                  className="w-full px-3 py-2 rounded-lg border border-sky-100 bg-yellow-100 
-                     transition-all duration-300 hover:bg-yellow-200 hover:shadow-sm"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-sm text-gray-800 truncate">
-                      {version.name}
-                    </span>
-
-                    <div className="flex gap-2 flex-shrink-0">
-                      <button
-                        onClick={() =>
-                          handleLoadVersion(version.id, version.name)
-                        }
-                        className="floppyDisk-button"
-                      >
-                        <CloudArrowDown size={20} weight="bold" />
-                      </button>
-
-                      <ConfirmModal
-                        onConfirm={() =>
-                          handleDeleteVersion(version.id)
-                        }
-                        buttonText={<TrashSimple size={20} />}
-                        message={`「${version.name}」を削除しますか？`}
-                        buttonColor="minus-button"
-                      />
-                    </div>
-                  </div>
-
-                  <p className="text-xs text-gray-500 mt-1">
-                    {formatDate(version.createdAt)}
-                  </p>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </details>
-
-        <details className="table-details mb-2">
-          <summary className="table-details-content">塗りつぶし</summary>
-          <div className="mb-4 p-3">
-            <div className="flex gap-2 flex-wrap">
-              {Object.entries(colorPalette).map(([colorId, hex]) => (
-                <button
-                  key={colorId}
-                  onClick={() => setCurrentColor(colorId)}
-                  className={`w-10 h-10 rounded-lg border-2 transition-all ${currentColor === colorId ? "border-gray-800 scale-110" : "border-gray-300"
-                    }`}
-                  style={{ backgroundColor: hex }}
-                  title={colorNames[colorId]}
-                />
-              ))}
-            </div>
-
-            <div className="mt-3">
-              <label className="text-xs text-gray-600">名前をカスタマイズ：</label>
-              <input
-                type="text"
-                value={colorNames[currentColor] || ""}
-                onChange={(e) => setColorNames(prev => ({ ...prev, [currentColor]: e.target.value }))}
-                className="w-full mt-1 px-2 py-1 text-sm border border-gray-300 rounded"
-              />
-            </div>
-          </div>
-        </details>
-
-        {hasMultipleColors && (
-          <details className="table-details mb-2">
-            <summary className="table-details-content">色別統計</summary>
-            <div className="p-2 mb-2 flex flex-wrap gap-2">
-              <p className="text-sm">都道府県が複数色の場合、全国地図はグレー表示</p>
-              {Object.entries(colorPalette).map(([colorId, hex]) => {
-                const pop = colorStats[colorId] || 0;
-                if (pop === 0) return null;
-
-                const ratio = nationalPopulation > 0
-                  ? ((pop / nationalPopulation) * 100).toFixed(3)
-                  : 0;
-
-                return (
-                  <div key={colorId} className="p-2 rounded-lg border-2 max-w-50 transition-all duration-300 hover:scale-104"
-                    style={{ borderColor: hex, backgroundColor: hex + "20" }}>
-                    <div className="flex items-center gap-2 mb-1">
-                      <div className="w-4 h-4 rounded" style={{ backgroundColor: hex }} />
-                      <span className="font-semibold text-sm">{colorNames[colorId]}</span>
-                    </div>
-                    <p className="text-lg font-bold">
-                      約 {pop.toLocaleString()}人
-                    </p>
-                    <p className="text-sm black">
-                      全国人口の約 {ratio}%
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-          </details>
+      <div className="relative w-full md:w-[420px] table-div bg-white overflow-hidden">
+        {rightPanelPref && (
+          <button
+            onClick={handleCloseRightPanelPref}
+            className="absolute text-sm px-1 py-0 left-1 top-6 z-50 w-8 h-8 orther-button"
+            title="戻る"
+          >
+            <ArrowLeft size={20} weight="bold" />
+          </button>
         )}
 
-        <details className="table-details mb-4">
-          <summary className="table-details-content">操作</summary>
-          <div className="p-3 flex flex-wrap gap-2">
-            <ConfirmModal
-              onConfirm={handleSaveMap}
-              buttonText={currentVersionId === null ? "保存" : `保存 (${currentVersionName})`}
-              message={currentVersionId === null ? "新しいバージョンとして保存しますか" : `「${currentVersionName}」を上書き保存しますか？`}
-              buttonColor="save-button"
-            />
+        <div className="h-full overflow-y-auto">
+          {rightPanelPref ? (
+            <div className="pt-0">
+              <PrefectureHoverTooltip
+                prefCode={rightPanelPref.prefCode}
+                prefName={rightPanelPref.prefName}
+                stats={rightPanelPref.stats}
+                isVisible={true}
+                panelMode={true}
+                onClose={handleCloseRightPanelPref}
+              />
+            </div>
+          ) : (
+            <>
+              <p className="text-sm text-gray-600 mb-2">
+                <span className="font-semibold text-gray-800">{selectedAreas.length}</span>個のエリアが色付けされています
+              </p>
 
-            <ConfirmModal
-              onConfirm={handleNewVersion}
-              buttonText="新規バージョン"
-              message="現在の塗りつぶし情報をクリアして新しいバージョンを開始しますか？"
-              buttonColor="orther-button"
-            />
+              <div className="bg-yellow-100 p-4 mb-5 table-details">
+                <p className="text-3xl font-extrabold text-yellow-600">
+                  約{" "}
+                  <span className="font-semibold text-sky-600">
+                    {totalPopulation.toLocaleString()}
+                  </span>
+                  人
+                </p>
+                <p className="text-3xl font-extrabold text-yellow-600">
+                  全国人口の約{" "}
+                  <span className="font-semibold text-sky-600">{populationRatio}%</span>
+                </p>
+              </div>
 
-            <button className="orther-button" onClick={() => importFileRef.current?.click()}>
-              導入
-            </button>
-            <input
-              ref={importFileRef}
-              type="file"
-              accept=".csv,.xlsx,.xls"
-              style={{ display: 'none' }}
-              onChange={handleImportFileChange}
-            />
+              <details className="table-details mb-2">
+                <summary className="table-details-content">統計情報源</summary>
+                <div className="p-3 text-sm text-gray-700">
+                  ・e-Stat 人口データ<br />
+                  ・総務省統計局<br />
+                  ・社会・人口統計体系<br />
+                  ・A2301_住民基本台帳人口(総数)2023年度<br />
+                  ・B1102_総面積（北方地域及び竹島を含む）【ｈａ】2023年度<br />
+                </div>
+              </details>
 
-            <button
-              className={`orther-button ${selectedPref
-                ? "bg-yellow-600 hover:bg-yellow-700"
-                : "bg-gray-400 cursor-not-allowed"
-                }`}
-              onClick={handleDownloadPPTX}
-              disabled={!selectedPref}
-            >
-              PPTX出力
-            </button>
-          </div>
-        </details>
+              <details className="table-details">
+                <summary className="table-details-content">
+                  保存したバージョン ({versions.length}/50)
+                </summary>
 
-        <details open className="table-details">
-          <summary className="table-details-content">都道府県</summary>
-          <ul className="mt-2 space-y-1 max-h-[56vh] overflow-y-auto">
-            {prefectures.map((p) => (
-              <li key={p.code}>
-                <button
-                  onClick={() => handlePrefectureSelect(p.code)}
-                  className={`w-full text-left px-3 py-2 rounded-lg transition-all duration-200
+                <ul className="mr-2 ml-1 mt-2 mb-2 space-y-2 max-h-[56vh] overflow-y-auto">
+                  {versions.length === 0 && (
+                    <li className="w-full text-center py-4 text-gray-500">
+                      保存されたバージョンはありません
+                    </li>
+                  )}
+
+                  {versions.map((version) => (
+                    <li key={version.id}>
+                      <div
+                        className="w-full px-3 py-2 rounded-lg border border-sky-100 bg-yellow-100 
+                     transition-all duration-300 hover:bg-yellow-200 hover:shadow-sm"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-sm text-gray-800 truncate">
+                            {version.name}
+                          </span>
+
+                          <div className="flex gap-2 flex-shrink-0">
+                            <button
+                              onClick={() =>
+                                handleLoadVersion(version.id, version.name)
+                              }
+                              className="floppyDisk-button"
+                            >
+                              <CloudArrowDown size={20} weight="bold" />
+                            </button>
+
+                            <ConfirmModal
+                              onConfirm={() =>
+                                handleDeleteVersion(version.id)
+                              }
+                              buttonText={<TrashSimple size={20} />}
+                              message={`「${version.name}」を削除しますか？`}
+                              buttonColor="minus-button"
+                            />
+                          </div>
+                        </div>
+
+                        <p className="text-xs text-gray-500 mt-1">
+                          {formatDate(version.createdAt)}
+                        </p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+
+              <details className="table-details mb-2">
+                <summary className="table-details-content">塗りつぶし</summary>
+                <div className="mb-4 p-3">
+                  <div className="flex gap-2 flex-wrap">
+                    {Object.entries(colorPalette).map(([colorId, hex]) => (
+                      <button
+                        key={colorId}
+                        onClick={() => setCurrentColor(colorId)}
+                        className={`w-10 h-10 rounded-lg border-2 transition-all ${currentColor === colorId ? "border-gray-800 scale-110" : "border-gray-300"
+                          }`}
+                        style={{ backgroundColor: hex }}
+                        title={colorNames[colorId]}
+                      />
+                    ))}
+                  </div>
+
+                  <div className="mt-3">
+                    <label className="text-xs text-gray-600">名前をカスタマイズ：</label>
+                    <input
+                      type="text"
+                      value={colorNames[currentColor] || ""}
+                      onChange={(e) => setColorNames(prev => ({ ...prev, [currentColor]: e.target.value }))}
+                      className="w-full mt-1 px-2 py-1 text-sm border border-gray-300 rounded"
+                    />
+                  </div>
+                </div>
+              </details>
+
+              {hasMultipleColors && (
+                <details className="table-details mb-2">
+                  <summary className="table-details-content">色別統計</summary>
+                  <div className="p-2 mb-2 flex flex-wrap gap-2">
+                    <p className="text-sm">都道府県が複数色の場合、全国地図はグレー表示</p>
+                    {Object.entries(colorPalette).map(([colorId, hex]) => {
+                      const pop = colorStats[colorId] || 0;
+                      if (pop === 0) return null;
+
+                      const ratio = nationalPopulation > 0
+                        ? ((pop / nationalPopulation) * 100).toFixed(3)
+                        : 0;
+
+                      return (
+                        <div key={colorId} className="p-2 rounded-lg border-2 max-w-50 transition-all duration-300 hover:scale-104"
+                          style={{ borderColor: hex, backgroundColor: hex + "20" }}>
+                          <div className="flex items-center gap-2 mb-1">
+                            <div className="w-4 h-4 rounded" style={{ backgroundColor: hex }} />
+                            <span className="font-semibold text-sm">{colorNames[colorId]}</span>
+                          </div>
+                          <p className="text-lg font-bold">
+                            約 {pop.toLocaleString()}人
+                          </p>
+                          <p className="text-sm black">
+                            全国人口の約 {ratio}%
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </details>
+              )}
+
+              <details className="table-details mb-4">
+                <summary className="table-details-content">操作</summary>
+                <div className="p-3 flex flex-wrap gap-2">
+                  <ConfirmModal
+                    onConfirm={handleSaveMap}
+                    buttonText={currentVersionId === null ? "保存" : `保存 (${currentVersionName})`}
+                    message={currentVersionId === null ? "新しいバージョンとして保存しますか" : `「${currentVersionName}」を上書き保存しますか？`}
+                    buttonColor="save-button"
+                  />
+
+                  <ConfirmModal
+                    onConfirm={handleNewVersion}
+                    buttonText="新規バージョン"
+                    message="現在の塗りつぶし情報をクリアして新しいバージョンを開始しますか？"
+                    buttonColor="orther-button"
+                  />
+
+                  <button className="orther-button" onClick={() => importFileRef.current?.click()}>
+                    導入
+                  </button>
+                  <input
+                    ref={importFileRef}
+                    type="file"
+                    accept=".csv,.xlsx,.xls"
+                    style={{ display: 'none' }}
+                    onChange={handleImportFileChange}
+                  />
+
+                  <button
+                    className={`orther-button ${selectedPref
+                      ? "bg-yellow-600 hover:bg-yellow-700"
+                      : "bg-gray-400 cursor-not-allowed"
+                      }`}
+                    onClick={handleDownloadPPTX}
+                    disabled={!selectedPref}
+                  >
+                    PPTX出力
+                  </button>
+                </div>
+              </details>
+
+              <details open className="table-details">
+                <summary className="table-details-content">都道府県</summary>
+                <ul className="mt-2 space-y-1 max-h-[56vh] overflow-y-auto">
+                  {prefectures.map((p) => (
+                    <li key={p.code}>
+                      <button
+                        onClick={() => handlePrefectureSelect(p.code)}
+                        className={`w-full text-left px-3 py-2 rounded-lg transition-all duration-200
                     ${selectedPref === p.code
-                      ? "bg-yellow-300 text-black shadow-md"
-                      : "hover:bg-yellow-200 hover:shadow-sm"
-                    }`}
-                >
-                  {p.name}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </details>
+                            ? "bg-yellow-300 text-black shadow-md"
+                            : "hover:bg-yellow-200 hover:shadow-sm"
+                          }`}
+                      >
+                        {p.name}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            </>
+          )}
+        </div>
       </div>
       <AlertModal ref={alertRef} />
       <WarningModal ref={warningRef} />
