@@ -10,6 +10,7 @@ export default function JapanMap({
   onSelect,
   onPrefectureClick,
   isPrefectureSelected,
+  activePanelPrefCode,
   getPrefectureColor,
   onLoad,
   selectedAreas = [],
@@ -22,7 +23,6 @@ export default function JapanMap({
   const svgRef = useRef(null);
   const [transform, setTransform] = useState({ k: 1, x: 0, y: 0 });
   const [isDataLoaded, setIsDataLoaded] = useState(false);
-
 
   // 初始化缩放拖拽
   useEffect(() => {
@@ -126,10 +126,14 @@ export default function JapanMap({
 
                     if (isSelected) {
                       if (colorId && colorId !== "mixed") {
-                        fillColor = "#ec2424"; // 全国地图始终显示红色
+                        fillColor = "#ec2424";
                       } else if (colorId === "mixed") {
-                        fillColor = "#ec2424"; // 混合颜色显示红色
+                        fillColor = "#ec2424";
                       }
+                    }
+
+                    if (activePanelPrefCode === prefCode) {
+                      fillColor = "#ff58b4";
                     }
 
                     return (

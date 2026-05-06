@@ -1292,6 +1292,7 @@ export default function Page() {
               nationalPopulation={nationalPopulation}
               areaData={areaData}
               nationalArea={nationalArea}
+              activePanelPrefCode={rightPanelPref?.prefCode || null}
             />
           ) : (
             <PrefectureMap

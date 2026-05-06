@@ -84,7 +84,7 @@ export function FloatingCharacter() {
           className="w-12 h-12 rounded-full bg-white shadow flex items-center justify-center hover:scale-105 transition active:scale-95"
         >
           <Image
-            src="/images/misaki.png"
+            src="/images/misaki_meiku.png"
             alt="open"
             width={32}
             height={32}

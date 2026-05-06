@@ -170,18 +170,11 @@ const BarcodeGenerator = () => {
                         </div>
                     </div>
                 </details>
-
-                <button
-                    onClick={downloadAllBarcodes}
-                    className="orther-button"
-                >
-                    一括DL
-                </button>
             </div>
 
             {/* 右侧显示区 */}
             <div className="flex-1 flex flex-col">
-                <div className="flex justify-start p-4 border-b border-gray-200">
+                <div className="flex justify-start gap-3 p-4 border-b border-gray-200">
                     <button
                         onClick={() => {
                             setDisplayMode(displayMode === 'grid' ? 'single' : 'grid');
@@ -190,6 +183,13 @@ const BarcodeGenerator = () => {
                         className="orther-button"
                     >
                         {displayMode === 'grid' ? '1 per page' : 'All in one page'}
+                    </button>
+
+                    <button
+                        onClick={downloadAllBarcodes}
+                        className="orther-button"
+                    >
+                        一括DL
                     </button>
                 </div>
 
