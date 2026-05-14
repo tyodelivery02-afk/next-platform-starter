@@ -157,7 +157,7 @@ export default function MonitorPage() {
                 )}
             </div>
 
-            <div className="mt-10 flex flex-col h-[calc(100vh-260px)]">
+            <div className="mt-10 flex flex-col h-[calc(100vh-210px)]">
                 {/* 独立滚动的数据列表区域 */}
                 <div className="flex-1 overflow-y-auto pr-2">
                     <ul className="space-y-4">
