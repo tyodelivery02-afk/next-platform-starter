@@ -61,11 +61,172 @@ async function collectTwitter(keyword) {
             `;
             if (result.length > 0) insertedCount++;
         } catch (e) {
-            console.error(`插入 Twitter 数据失败 (${id}):`, e.message);
+            console.error(`插入 Twitter 数据失敗 (${id}):`, e.message);
         }
     }
 
     return { success: true, count: insertedCount };
+}
+
+// ===== Bluesky =====
+async function collectBluesky(keyword) {
+    try {
+        const url =
+            `https://api.bsky.app/xrpc/app.bsky.feed.searchPosts` +
+            `?q=${encodeURIComponent(keyword)}` +
+            `&limit=20`;
+
+        const res = await fetch(url, {
+            headers: {
+                'Accept': 'application/json'
+            }
+        });
+
+        if (!res.ok) {
+            return {
+                success: false,
+                error: `Bluesky API ${res.status}`
+            };
+        }
+
+        const data = await res.json();
+        const posts = data.posts || [];
+
+        console.log(`Bluesky 找到 ${posts.length} 条结果`);
+
+        let insertedCount = 0;
+
+        for (const post of posts) {
+            const text = post.record?.text || '';
+            const createdAt = post.record?.createdAt || post.indexedAt || null;
+            const handle = post.author?.handle;
+            const uri = post.uri;
+
+            if (!uri || !handle) continue;
+
+            const rkey = uri.split('/').pop();
+            const postUrl = `https://bsky.app/profile/${handle}/post/${rkey}`;
+            const id = `bsky_${hash(postUrl)}`;
+
+            try {
+                const result = await sql`
+                    INSERT INTO monitored_items
+                    (id, source, keyword, content, url, published_at)
+                    VALUES (
+                        ${id},
+                        'bluesky',
+                        ${keyword},
+                        ${text},
+                        ${postUrl},
+                        ${createdAt ? new Date(createdAt) : null}
+                    )
+                    ON CONFLICT (url) DO NOTHING
+                    RETURNING id
+                `;
+
+                if (result.length > 0) insertedCount++;
+            } catch (e) {
+                console.error(`插入 Bluesky 数据失敗 (${id}):`, e.message);
+            }
+        }
+
+        return {
+            success: true,
+            count: insertedCount,
+            total: posts.length
+        };
+    } catch (e) {
+        return {
+            success: false,
+            error: e.message
+        };
+    }
+}
+
+// ===== YouTube =====
+async function collectYouTube(keyword) {
+    try {
+        const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY;
+
+        if (!YOUTUBE_API_KEY) {
+            console.log('YouTube API 未配置，跳过');
+            return {
+                success: false,
+                error: "YouTube API 未配置"
+            };
+        }
+
+        const url =
+            `https://www.googleapis.com/youtube/v3/search` +
+            `?part=snippet` +
+            `&q=${encodeURIComponent(keyword)}` +
+            `&type=video` +
+            `&order=date` +
+            `&maxResults=20` +
+            `&regionCode=JP` +
+            `&relevanceLanguage=ja` +
+            `&key=${YOUTUBE_API_KEY}`;
+
+        const res = await fetch(url);
+
+        if (!res.ok) {
+            const text = await res.text();
+            return {
+                success: false,
+                error: `YouTube API ${res.status}: ${text}`
+            };
+        }
+
+        const data = await res.json();
+        const items = data.items || [];
+
+        console.log(`YouTube 找到 ${items.length} 条结果`);
+
+        let insertedCount = 0;
+
+        for (const item of items) {
+            const videoId = item.id?.videoId;
+            const snippet = item.snippet;
+
+            if (!videoId || !snippet) continue;
+
+            const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+            const id = `youtube_${videoId}`;
+
+            try {
+                const result = await sql`
+                    INSERT INTO monitored_items
+                    (id, source, keyword, title, content, url, published_at)
+                    VALUES (
+                        ${id},
+                        'youtube',
+                        ${keyword},
+                        ${snippet.title || ''},
+                        ${snippet.description || ''},
+                        ${videoUrl},
+                        ${snippet.publishedAt ? new Date(snippet.publishedAt) : null}
+                    )
+                    ON CONFLICT (url) DO NOTHING
+                    RETURNING id
+                `;
+
+                if (result.length > 0) insertedCount++;
+            } catch (e) {
+                console.error(`插入 YouTube 数据失敗 (${id}):`, e.message);
+            }
+        }
+
+        return {
+            success: true,
+            count: insertedCount,
+            total: items.length
+        };
+    } catch (e) {
+        return {
+            success: false,
+            error: e.message
+        };
+    }
 }
 
 // ===== 通用 Google 搜索 =====
@@ -115,7 +276,7 @@ async function collectGoogleSearch(keyword) {
                 `;
                 if (result.length > 0) insertedCount++;
             } catch (e) {
-                console.error(`插入 Google Search 数据失败:`, e.message);
+                console.error(`插入 Google Search 数据失敗:`, e.message);
             }
         }
 
@@ -171,7 +332,7 @@ async function collectSerpAPI(keyword) {
                 `;
                 if (result.length > 0) insertedCount++;
             } catch (e) {
-                console.error(`插入 SerpAPI 数据失败:`, e.message);
+                console.error(`插入 SerpAPI 数据失敗:`, e.message);
             }
         }
 
@@ -229,7 +390,7 @@ async function collectYahooJapanNews(keyword) {
                 `;
                 if (result.length > 0) insertedCount++;
             } catch (e) {
-                console.error(`插入 Yahoo Japan 数据失败:`, e.message);
+                console.error(`插入 Yahoo Japan 数据失敗:`, e.message);
             }
         }
 
@@ -283,7 +444,7 @@ async function collectGoogleNewsJapan(keyword) {
                 `;
                 if (result.length > 0) insertedCount++;
             } catch (e) {
-                console.error(`插入 Google News Japan 数据失败:`, e.message);
+                console.error(`插入 Google News Japan 数据失敗:`, e.message);
             }
         }
 
@@ -296,30 +457,49 @@ async function collectGoogleNewsJapan(keyword) {
 // ===== 5ch =====
 async function collect5ch(keyword) {
     try {
-        // 5ch (旧 2ch) 的搜索 API
-        // 注意：5ch 没有官方 API，这里使用第三方搜索服务
-        const url = `https://find.5ch.net/search?q=${encodeURIComponent(keyword)}`;
+        const url = `https://ff5ch.syoboi.jp/?q=${encodeURIComponent(keyword)}`;
 
         const res = await fetch(url, {
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            }
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Accept': 'text/html,application/xhtml+xml'
+            },
+            cache: 'no-store'
         });
 
         if (!res.ok) {
-            return { success: false, error: `5ch 搜索失败 ${res.status}` };
+            return {
+                success: false,
+                error: `5ch 搜索失败 ${res.status}`
+            };
         }
 
         const html = await res.text();
 
-        // 简单的 HTML 解析（实际应用中建议使用专门的解析库）
-        const threadMatches = [...html.matchAll(/<a href="(https:\/\/[^"]+\/test\/read\.cgi\/[^"]+)"[^>]*>([^<]+)<\/a>/g)];
+        // 提取 5ch.io 的线程链接
+        const threadMatches = [
+            ...html.matchAll(
+                /<a[^>]+href="(https?:\/\/[^"]+?\.5ch\.io\/test\/read\.cgi\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/g
+            )
+        ];
 
         let insertedCount = 0;
+
         for (const match of threadMatches.slice(0, 10)) {
-            const url = match[1];
-            const title = match[2];
-            const id = `5ch_${hash(url)}`;
+            const threadUrl = match[1];
+
+            const title = match[2]
+                .replace(/<[^>]*>/g, "")
+                .replace(/&amp;/g, "&")
+                .replace(/&quot;/g, '"')
+                .replace(/&#39;/g, "'")
+                .replace(/&lt;/g, "<")
+                .replace(/&gt;/g, ">")
+                .trim();
+
+            if (!threadUrl || !title) continue;
+
+            const id = `5ch_${hash(threadUrl)}`;
 
             try {
                 const result = await sql`
@@ -330,21 +510,29 @@ async function collect5ch(keyword) {
                         '5ch',
                         ${keyword},
                         ${title},
-                        ${url},
+                        ${threadUrl},
                         ${new Date()}
                     )
                     ON CONFLICT (url) DO NOTHING
                     RETURNING id
                 `;
+
                 if (result.length > 0) insertedCount++;
             } catch (e) {
                 console.error(`插入 5ch 数据失败:`, e.message);
             }
         }
 
-        return { success: true, count: insertedCount };
+        return {
+            success: true,
+            count: insertedCount,
+            total: threadMatches.length
+        };
     } catch (e) {
-        return { success: false, error: e.message };
+        return {
+            success: false,
+            error: e.message
+        };
     }
 }
 
@@ -362,7 +550,7 @@ async function collectNote(keyword) {
         });
 
         if (!res.ok) {
-            return { success: false, error: `note 搜索失败 ${res.status}` };
+            return { success: false, error: `note 搜索失敗 ${res.status}` };
         }
 
         const html = await res.text();
@@ -392,7 +580,7 @@ async function collectNote(keyword) {
                 `;
                 if (result.length > 0) insertedCount++;
             } catch (e) {
-                console.error(`插入 note 数据失败:`, e.message);
+                console.error(`插入 note 数据失敗:`, e.message);
             }
         }
 
@@ -426,6 +614,8 @@ export async function POST(req) {
 
     const results = {
         twitter: {},
+        bluesky: {},
+        youtube: {},
         googleSearch: {},
         googleNews: {},
         yahooJapan: {},
@@ -453,7 +643,7 @@ export async function POST(req) {
                         });
                     }
                 } catch (e) {
-                    console.error(`SerpAPI 收集失败 (${keyword}):`, e);
+                    console.error(`SerpAPI 收集失敗 (${keyword}):`, e);
                     results.googleSearch[keyword] = { success: false, error: e.message };
                     results.errors.push({ source: 'google-search', keyword, error: e.message });
                 }
@@ -469,7 +659,7 @@ export async function POST(req) {
                         });
                     }
                 } catch (e) {
-                    console.error(`Google Search 收集失败 (${keyword}):`, e);
+                    console.error(`Google Search 收集失敗 (${keyword}):`, e);
                     results.googleSearch[keyword] = { success: false, error: e.message };
                     results.errors.push({ source: 'google-search', keyword, error: e.message });
                 }
@@ -487,9 +677,59 @@ export async function POST(req) {
                     });
                 }
             } catch (e) {
-                console.error(`Twitter 收集失败 (${keyword}):`, e);
+                console.error(`Twitter 收集失敗 (${keyword}):`, e);
                 results.twitter[keyword] = { success: false, error: e.message };
                 results.errors.push({ source: 'twitter', keyword, error: e.message });
+            }
+
+            // Bluesky
+            try {
+                const blueskyResult = await collectBluesky(keyword);
+                results.bluesky[keyword] = blueskyResult;
+
+                if (!blueskyResult.success) {
+                    results.errors.push({
+                        source: 'bluesky',
+                        keyword,
+                        error: blueskyResult.error
+                    });
+                }
+            } catch (e) {
+                console.error(`Bluesky 收集失敗 (${keyword}):`, e);
+                results.bluesky[keyword] = {
+                    success: false,
+                    error: e.message
+                };
+                results.errors.push({
+                    source: 'bluesky',
+                    keyword,
+                    error: e.message
+                });
+            }
+
+            // YouTube
+            try {
+                const youtubeResult = await collectYouTube(keyword);
+                results.youtube[keyword] = youtubeResult;
+
+                if (!youtubeResult.success) {
+                    results.errors.push({
+                        source: 'youtube',
+                        keyword,
+                        error: youtubeResult.error
+                    });
+                }
+            } catch (e) {
+                console.error(`YouTube 收集失敗 (${keyword}):`, e);
+                results.youtube[keyword] = {
+                    success: false,
+                    error: e.message
+                };
+                results.errors.push({
+                    source: 'youtube',
+                    keyword,
+                    error: e.message
+                });
             }
 
             // Google News Japan
@@ -504,7 +744,7 @@ export async function POST(req) {
                     });
                 }
             } catch (e) {
-                console.error(`Google News JP 收集失败 (${keyword}):`, e);
+                console.error(`Google News JP 收集失敗 (${keyword}):`, e);
                 results.googleNews[keyword] = { success: false, error: e.message };
                 results.errors.push({ source: 'google-news-jp', keyword, error: e.message });
             }
@@ -521,7 +761,7 @@ export async function POST(req) {
                     });
                 }
             } catch (e) {
-                console.error(`Yahoo Japan 收集失败 (${keyword}):`, e);
+                console.error(`Yahoo Japan 收集失敗 (${keyword}):`, e);
                 results.yahooJapan[keyword] = { success: false, error: e.message };
                 results.errors.push({ source: 'yahoo-japan', keyword, error: e.message });
             }
@@ -538,7 +778,7 @@ export async function POST(req) {
                     });
                 }
             } catch (e) {
-                console.error(`5ch 收集失败 (${keyword}):`, e);
+                console.error(`5ch 收集失敗 (${keyword}):`, e);
                 results.fivech[keyword] = { success: false, error: e.message };
                 results.errors.push({ source: '5ch', keyword, error: e.message });
             }
@@ -555,7 +795,7 @@ export async function POST(req) {
                     });
                 }
             } catch (e) {
-                console.error(`note 收集失败 (${keyword}):`, e);
+                console.error(`note 收集失敗 (${keyword}):`, e);
                 results.note[keyword] = { success: false, error: e.message };
                 results.errors.push({ source: 'note', keyword, error: e.message });
             }
@@ -577,6 +817,14 @@ export async function POST(req) {
             .filter(r => r.success)
             .reduce((sum, r) => sum + (r.count || 0), 0);
 
+        const blueskyTotal = Object.values(results.bluesky)
+            .filter(r => r.success)
+            .reduce((sum, r) => sum + (r.count || 0), 0);
+
+        const youtubeTotal = Object.values(results.youtube)
+            .filter(r => r.success)
+            .reduce((sum, r) => sum + (r.count || 0), 0);
+
         const googleNewsTotal = Object.values(results.googleNews)
             .filter(r => r.success)
             .reduce((sum, r) => sum + (r.count || 0), 0);
@@ -594,7 +842,16 @@ export async function POST(req) {
             .reduce((sum, r) => sum + (r.count || 0), 0);
 
         const duration = Date.now() - startTime;
-        const totalCount = googleSearchTotal + bingSearchTotal + twitterTotal + googleNewsTotal + yahooTotal + fivechTotal + noteTotal;
+        const totalCount =
+            googleSearchTotal +
+            bingSearchTotal +
+            twitterTotal +
+            blueskyTotal +
+            youtubeTotal +
+            googleNewsTotal +
+            yahooTotal +
+            fivechTotal +
+            noteTotal;
         const status = results.errors.length === 0 ? 'success' :
             (totalCount > 0 ? 'partial' : 'failed');
 
@@ -606,7 +863,7 @@ export async function POST(req) {
                 VALUES (
                     ${status},
                     ${twitterTotal},
-                    ${googleSearchTotal + bingSearchTotal + googleNewsTotal + yahooTotal + fivechTotal + noteTotal},
+                    ${googleSearchTotal + bingSearchTotal + blueskyTotal + youtubeTotal + googleNewsTotal + yahooTotal + fivechTotal + noteTotal},
                     ${totalCount},
                     ${JSON.stringify(results.errors)},
                     ${duration},
@@ -614,7 +871,7 @@ export async function POST(req) {
                 )
             `;
         } catch (logError) {
-            console.error('日志记录失败:', logError);
+            console.error('日志记录失敗:', logError);
         }
 
         return NextResponse.json({
@@ -623,6 +880,8 @@ export async function POST(req) {
                 googleSearch: googleSearchTotal,
                 bingSearch: bingSearchTotal,
                 twitter: twitterTotal,
+                bluesky: blueskyTotal,
+                youtube: youtubeTotal,
                 googleNews: googleNewsTotal,
                 yahooJapan: yahooTotal,
                 fivech: fivechTotal,
@@ -649,7 +908,7 @@ export async function POST(req) {
                 )
             `;
         } catch (logError) {
-            console.error('日志记录失败:', logError);
+            console.error('日志记录失敗:', logError);
         }
 
         console.error("監控執行失敗:", e);
