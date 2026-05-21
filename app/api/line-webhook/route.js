@@ -245,18 +245,7 @@ export async function POST(req) {
             }
 
             console.log("saved records:", savedRows);
-
-            await replyToLine(
-                event.replyToken,
-                [
-                    "画像情報を保存しました。",
-                    `送信時間：${messageTime}`,
-                    `E番号：${eNumbers.join(", ")}`,
-                    "",
-                    "識別文字：",
-                    imageInfo || "文字を識別できませんでした。",
-                ].join("\n")
-            );
+            console.log("Process completed without LINE reply.");
         }
 
         return NextResponse.json({
