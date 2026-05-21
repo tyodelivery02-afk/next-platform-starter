@@ -34,8 +34,13 @@ async function downloadLineImage(messageId) {
         throw new Error(`LINE画像ダウンロード失敗: ${res.status} ${text}`);
     }
 
+    const contentType = res.headers.get("content-type") || "image/jpeg";
     const arrayBuffer = await res.arrayBuffer();
-    return Buffer.from(arrayBuffer);
+
+    return {
+        buffer: Buffer.from(arrayBuffer),
+        contentType
+    };
 }
 
 async function ocrImageWithOcrSpace(imageBuffer) {
@@ -94,8 +99,20 @@ function extractENumbers(text) {
 }
 
 function formatLineTimestamp(timestamp) {
-    if (!timestamp) return new Date().toISOString();
-    return new Date(timestamp).toISOString();
+    const date = timestamp ? new Date(timestamp) : new Date();
+
+    const japanTime = new Intl.DateTimeFormat("sv-SE", {
+        timeZone: "Asia/Tokyo",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+    }).format(date);
+
+    return japanTime.replace(" ", "T") + "+09:00";
 }
 
 async function saveLineImageRecord({
@@ -105,6 +122,8 @@ async function saveLineImageRecord({
     lineMessageId,
     groupId,
     userId,
+    imageBase64,
+    imageMimeType,
 }) {
     const rows = await sql`
     INSERT INTO line_image_records (
@@ -113,7 +132,10 @@ async function saveLineImageRecord({
       image_info,
       line_message_id,
       group_id,
-      user_id
+      user_id,
+      states,
+      image_base64,
+      image_mime_type
     )
     VALUES (
       ${messageTime},
@@ -121,15 +143,20 @@ async function saveLineImageRecord({
       ${imageInfo || ""},
       ${lineMessageId || null},
       ${groupId || null},
-      ${userId || null}
+      ${userId || null},
+      0,
+      ${imageBase64 || null},
+      ${imageMimeType || "image/jpeg"}
     )
     ON CONFLICT (line_message_id, e_number)
     DO UPDATE SET
       message_time = EXCLUDED.message_time,
       image_info = EXCLUDED.image_info,
       group_id = EXCLUDED.group_id,
-      user_id = EXCLUDED.user_id
-    RETURNING id, message_time, e_number
+      user_id = EXCLUDED.user_id,
+      image_base64 = EXCLUDED.image_base64,
+      image_mime_type = EXCLUDED.image_mime_type
+    RETURNING id, message_time, e_number, states
   `;
 
     return rows[0];
@@ -203,7 +230,10 @@ export async function POST(req) {
 
             console.log("downloading image:", messageId);
 
-            const imageBuffer = await downloadLineImage(messageId);
+            const downloadedImage = await downloadLineImage(messageId);
+            const imageBuffer = downloadedImage.buffer;
+            const imageMimeType = downloadedImage.contentType;
+            const imageBase64 = imageBuffer.toString("base64");
 
             console.log("image downloaded. size:", imageBuffer.length);
 
@@ -239,13 +269,19 @@ export async function POST(req) {
                     lineMessageId: messageId,
                     groupId,
                     userId,
+                    imageBase64,
+                    imageMimeType,
                 });
 
                 savedRows.push(saved);
             }
 
             console.log("saved records:", savedRows);
-            console.log("Process completed without LINE reply.");
+
+            await replyToLine(
+                event.replyToken,
+                eNumbers.map((eNumber) => `${eNumber}，OK`).join("\n")
+            );
         }
 
         return NextResponse.json({
