@@ -1,29 +1,255 @@
 import { NextResponse } from "next/server";
+import { neon } from "@netlify/neon";
+import crypto from "crypto";
+import { createWorker } from "tesseract.js";
 
+export const runtime = "nodejs";
+
+const sql = neon();
+
+function verifyLineSignature(rawBody, signature) {
+    if (!signature) return false;
+
+    const hash = crypto
+        .createHmac("SHA256", process.env.LINE_CHANNEL_SECRET)
+        .update(rawBody)
+        .digest("base64");
+
+    return hash === signature;
+}
+
+async function downloadLineImage(messageId) {
+    const res = await fetch(
+        `https://api-data.line.me/v2/bot/message/${messageId}/content`,
+        {
+            method: "GET",
+            headers: {
+                Authorization: `Bearer ${process.env.LINE_CHANNEL_ACCESS_TOKEN}`,
+            },
+        }
+    );
+
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`LINE画像ダウンロード失敗: ${res.status} ${text}`);
+    }
+
+    const arrayBuffer = await res.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+}
+
+async function ocrImage(imageBuffer) {
+    // E番号だけなら eng が軽くておすすめです。
+    const worker = await createWorker("eng");
+
+    try {
+        const result = await worker.recognize(imageBuffer);
+        return result?.data?.text || "";
+    } finally {
+        await worker.terminate();
+    }
+}
+
+function extractENumbers(text) {
+    if (!text) return [];
+
+    // OCRで E 1 0 0... のように空白が入ることがあるので削除
+    const normalized = text
+        .replace(/\s+/g, "")
+        .replace(/－/g, "-")
+        .replace(/—/g, "-")
+        .replace(/-/g, "");
+
+    // E + 11桁数字 = 合計12文字
+    const matches = normalized.match(/E\d{11}/g) || [];
+
+    return [...new Set(matches)];
+}
+
+function formatLineTimestamp(timestamp) {
+    if (!timestamp) return new Date().toISOString();
+    return new Date(timestamp).toISOString();
+}
+
+async function saveLineImageRecord({
+    messageTime,
+    eNumber,
+    imageInfo,
+    lineMessageId,
+    groupId,
+    userId,
+}) {
+    const rows = await sql`
+    INSERT INTO line_image_records (
+      message_time,
+      e_number,
+      image_info,
+      line_message_id,
+      group_id,
+      user_id
+    )
+    VALUES (
+      ${messageTime},
+      ${eNumber},
+      ${imageInfo || ""},
+      ${lineMessageId || null},
+      ${groupId || null},
+      ${userId || null}
+    )
+    ON CONFLICT (line_message_id, e_number)
+    DO UPDATE SET
+      message_time = EXCLUDED.message_time,
+      image_info = EXCLUDED.image_info,
+      group_id = EXCLUDED.group_id,
+      user_id = EXCLUDED.user_id
+    RETURNING id, message_time, e_number
+  `;
+
+    return rows[0];
+}
+
+async function replyToLine(replyToken, text) {
+    if (!replyToken) return;
+
+    const res = await fetch("https://api.line.me/v2/bot/message/reply", {
+        method: "POST",
+        headers: {
+            Authorization: `Bearer ${process.env.LINE_CHANNEL_ACCESS_TOKEN}`,
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+            replyToken,
+            messages: [
+                {
+                    type: "text",
+                    text,
+                },
+            ],
+        }),
+    });
+
+    if (!res.ok) {
+        const body = await res.text();
+        console.error("LINE Reply Error:", res.status, body);
+    }
+}
+
+// 浏览器打开 /api/line-webhook 时用于确认 API 存在
 export async function GET() {
     return NextResponse.json({
         success: true,
-        message: "LINE webhook API is alive. Please use POST for LINE webhook."
+        message: "LINE webhook API is alive. Please use POST for LINE webhook.",
     });
 }
 
 export async function POST(req) {
     try {
-        const rawBody = await req.text();
+        console.log("LINE webhook POST received");
 
-        console.log("LINE webhook received");
-        console.log("rawBody:", rawBody);
-        console.log("signature:", req.headers.get("x-line-signature"));
+        const rawBody = await req.text();
+        const signature = req.headers.get("x-line-signature");
+
+        console.log("signature exists:", !!signature);
+
+        if (!verifyLineSignature(rawBody, signature)) {
+            console.error("Invalid LINE signature");
+
+            return NextResponse.json(
+                { error: "Invalid LINE signature" },
+                { status: 401 }
+            );
+        }
+
+        const body = JSON.parse(rawBody);
+        const events = body.events || [];
+
+        console.log("events count:", events.length);
+
+        for (const event of events) {
+            console.log("event type:", event.type);
+            console.log("message type:", event.message?.type);
+            console.log("message id:", event.message?.id);
+            console.log("timestamp:", event.timestamp);
+
+            if (event.type !== "message" || event.message?.type !== "image") {
+                continue;
+            }
+
+            const messageId = event.message.id;
+            const messageTime = formatLineTimestamp(event.timestamp);
+            const groupId = event.source?.groupId || event.source?.roomId || null;
+            const userId = event.source?.userId || null;
+
+            console.log("downloading image:", messageId);
+
+            const imageBuffer = await downloadLineImage(messageId);
+
+            console.log("image downloaded. size:", imageBuffer.length);
+
+            const imageInfo = await ocrImage(imageBuffer);
+
+            console.log("OCR result:", imageInfo);
+
+            const eNumbers = extractENumbers(imageInfo);
+
+            console.log("extracted E numbers:", eNumbers);
+
+            if (eNumbers.length === 0) {
+                await replyToLine(
+                    event.replyToken,
+                    [
+                        "画像を識別しましたが、Eから始まる12桁の番号は見つかりませんでした。",
+                        "",
+                        "識別文字：",
+                        imageInfo || "文字を識別できませんでした。",
+                    ].join("\n")
+                );
+
+                continue;
+            }
+
+            const savedRows = [];
+
+            for (const eNumber of eNumbers) {
+                const saved = await saveLineImageRecord({
+                    messageTime,
+                    eNumber,
+                    imageInfo,
+                    lineMessageId: messageId,
+                    groupId,
+                    userId,
+                });
+
+                savedRows.push(saved);
+            }
+
+            console.log("saved records:", savedRows);
+
+            await replyToLine(
+                event.replyToken,
+                [
+                    "画像情報を保存しました。",
+                    `送信時間：${messageTime}`,
+                    `E番号：${eNumbers.join(", ")}`,
+                    "",
+                    "識別文字：",
+                    imageInfo || "文字を識別できませんでした。",
+                ].join("\n")
+            );
+        }
 
         return NextResponse.json({
             success: true,
-            message: "Webhook received"
+            message: "LINE webhook processed",
         });
     } catch (error) {
-        console.error("Webhook test error:", error);
+        console.error("LINE Webhook Error:", error);
 
         return NextResponse.json(
-            { error: "Webhook test failed" },
+            {
+                error: "LINE webhook処理失敗",
+                detail: error.message,
+            },
             { status: 500 }
         );
     }
