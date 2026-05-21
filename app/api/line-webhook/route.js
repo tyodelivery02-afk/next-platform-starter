@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { neon } from "@netlify/neon";
 import crypto from "crypto";
-import { createWorker } from "tesseract.js";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 const sql = neon();
 
@@ -38,29 +38,56 @@ async function downloadLineImage(messageId) {
     return Buffer.from(arrayBuffer);
 }
 
-async function ocrImage(imageBuffer) {
-    // E番号だけなら eng が軽くておすすめです。
-    const worker = await createWorker("eng");
+async function ocrImageWithOcrSpace(imageBuffer) {
+    const base64Image = imageBuffer.toString("base64");
 
-    try {
-        const result = await worker.recognize(imageBuffer);
-        return result?.data?.text || "";
-    } finally {
-        await worker.terminate();
+    const formData = new FormData();
+    formData.append("apikey", process.env.OCR_SPACE_API_KEY || "helloworld");
+    formData.append("language", "eng");
+    formData.append("isOverlayRequired", "false");
+    formData.append("scale", "true");
+    formData.append("OCREngine", "2");
+    formData.append("base64Image", `data:image/jpeg;base64,${base64Image}`);
+
+    const res = await fetch("https://api.ocr.space/parse/image", {
+        method: "POST",
+        body: formData,
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+        throw new Error(`OCR.space HTTP Error: ${res.status}`);
     }
+
+    if (data.IsErroredOnProcessing) {
+        throw new Error(
+            `OCR.space Error: ${data.ErrorMessage || data.ErrorDetails || "Unknown error"}`
+        );
+    }
+
+    const parsedText =
+        data.ParsedResults
+            ?.map((item) => item.ParsedText)
+            .filter(Boolean)
+            .join("\n") || "";
+
+    return parsedText;
 }
 
 function extractENumbers(text) {
     if (!text) return [];
 
-    // OCRで E 1 0 0... のように空白が入ることがあるので削除
     const normalized = text
         .replace(/\s+/g, "")
-        .replace(/－/g, "-")
-        .replace(/—/g, "-")
-        .replace(/-/g, "");
+        .replace(/－/g, "")
+        .replace(/—/g, "")
+        .replace(/-/g, "")
+        .replace(/Ｏ/g, "0")
+        .replace(/O/g, "0")
+        .replace(/Ｉ/g, "1")
+        .replace(/I/g, "1");
 
-    // E + 11桁数字 = 合計12文字
     const matches = normalized.match(/E\d{11}/g) || [];
 
     return [...new Set(matches)];
@@ -119,12 +146,7 @@ async function replyToLine(replyToken, text) {
         },
         body: JSON.stringify({
             replyToken,
-            messages: [
-                {
-                    type: "text",
-                    text,
-                },
-            ],
+            messages: [{ type: "text", text }],
         }),
     });
 
@@ -134,7 +156,6 @@ async function replyToLine(replyToken, text) {
     }
 }
 
-// 浏览器打开 /api/line-webhook 时用于确认 API 存在
 export async function GET() {
     return NextResponse.json({
         success: true,
@@ -186,7 +207,7 @@ export async function POST(req) {
 
             console.log("image downloaded. size:", imageBuffer.length);
 
-            const imageInfo = await ocrImage(imageBuffer);
+            const imageInfo = await ocrImageWithOcrSpace(imageBuffer);
 
             console.log("OCR result:", imageInfo);
 
