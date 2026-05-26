@@ -9,25 +9,29 @@ const sql = neon();
 export async function GET(req) {
     try {
         const { searchParams } = new URL(req.url);
+
         const limit = Math.min(
             50,
             Math.max(1, parseInt(searchParams.get("limit") || "20", 10))
         );
 
         const rows = await sql`
-            SELECT
-                id,
-                message_time,
-                e_number,
-                image_base64,
-                image_mime_type,
-                states,
-                created_at
-            FROM line_image_records
-            WHERE states = 0
-            ORDER BY created_at DESC
-            LIMIT ${limit}
-        `;
+      SELECT
+        id,
+        message_time,
+        e_number,
+        image_mime_type,
+        states,
+        created_at,
+        CASE
+          WHEN image_base64 IS NULL OR image_base64 = '' THEN false
+          ELSE true
+        END AS has_image
+      FROM line_image_records
+      WHERE states = 0
+      ORDER BY created_at DESC
+      LIMIT ${limit}
+    `;
 
         return NextResponse.json({
             success: true,
@@ -35,11 +39,11 @@ export async function GET(req) {
                 id: row.id,
                 messageTime: row.message_time,
                 eNumber: row.e_number,
-                imageBase64: row.image_base64,
                 imageMimeType: row.image_mime_type || "image/jpeg",
+                hasImage: row.has_image,
                 states: row.states,
                 createdAt: row.created_at,
-            }))
+            })),
         });
     } catch (error) {
         console.error("Return entry GET error:", error);
@@ -48,7 +52,7 @@ export async function GET(req) {
             {
                 success: false,
                 error: "return entry取得失敗",
-                detail: error.message
+                detail: error.message,
             },
             { status: 500 }
         );
@@ -68,15 +72,15 @@ export async function PATCH(req) {
         }
 
         const rows = await sql`
-            UPDATE line_image_records
-            SET states = 1
-            WHERE id = ${id}
-            RETURNING id, e_number, states
-        `;
+      UPDATE line_image_records
+      SET states = 1
+      WHERE id = ${id}
+      RETURNING id, e_number, states
+    `;
 
         return NextResponse.json({
             success: true,
-            data: rows[0] || null
+            data: rows[0] || null,
         });
     } catch (error) {
         console.error("Return entry PATCH error:", error);
@@ -85,7 +89,7 @@ export async function PATCH(req) {
             {
                 success: false,
                 error: "return entry更新失敗",
-                detail: error.message
+                detail: error.message,
             },
             { status: 500 }
         );
