@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
-// import { neon } from "@netlify/neon";
-import { sql } from "@/app/lib/db";
-// const sql = neon();
+import { sql } from "../../../lib/db";
 
 export async function GET(req) {
     try {
