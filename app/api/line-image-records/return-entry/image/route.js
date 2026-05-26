@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { neon } from "@netlify/neon";
-
+// import { neon } from "@netlify/neon";
+import { sql } from "@/app/lib/db";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const sql = neon();
+// const sql = neon();
 
 export async function GET(req) {
     try {
