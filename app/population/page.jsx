@@ -1498,7 +1498,7 @@ export default function Page() {
                   />
 
                   <button className="orther-button" onClick={() => importFileRef.current?.click()}>
-                    導入
+                    インポート
                   </button>
                   <input
                     ref={importFileRef}

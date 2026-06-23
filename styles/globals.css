@@ -190,6 +190,10 @@
         @apply rounded-2xl shadow-lg p-4 bg-sky-50/70 border border-black backdrop-blur-sm hover:shadow-yellow-200 transition-all duration-300
     }
 
+    .table-div-yellow {
+        @apply rounded-2xl p-4 bg-yellow-100 hover:bg-yellow-200 border border-black backdrop-blur-sm transition-all duration-300
+    }
+
     /* 表格标题样式 */
     .table-title {
         @apply bg-sky-600 text-white border-1 border border-sky-300

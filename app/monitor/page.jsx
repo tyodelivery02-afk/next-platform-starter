@@ -110,8 +110,8 @@ export default function MonitorPage() {
 
                     {itemTotal} 件記事
                     <div className="flex flex-col mr-30 ml-auto">
-                        <p className="font-medium text-red-500 bg-yellow-200">根据26年2月7日新规定，X(旧推特)的免费额度被取消。今后将不会更新X(旧推特)的推文。</p>
-                        <p className="font-medium">---------------------------</p>
+                        <p className="font-medium text-red-500 bg-yellow-200">2026年2月7日の新規定によりX（旧Twitter）の無料枠が廃止されたため、今後はXでのエゴサを停止いたします。</p>
+                        <p className="font-medium">-------------------------------------------</p>
                         <p className="text-xl font-medium">je ne vois que d’un point, mais dans mon existence je suis regardé de partout.</p>
                         <p className="font-medium">- I see only from one point, but in my existence I am looked from everywhere. -</p>
                     </div>
