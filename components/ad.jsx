@@ -7,10 +7,10 @@ import { X } from "phosphor-react";
 
 export function FloatingCharacter() {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
+  const [chatOpen, setChatOpen] = useState(false);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [chatOpen, setChatOpen] = useState(true);
 
   const [messages, setMessages] = useState([
     {

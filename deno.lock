@@ -62,7 +62,7 @@
         "npm:react-live-clock@^6.1.25",
         "npm:react-simple-maps@3",
         "npm:react@18.3.1",
-        "npm:recharts@^3.5.1",
+        "npm:recharts@^3.8.1",
         "npm:tailwindcss@^4.0.15",
         "npm:topojson-client@^3.1.0",
         "npm:unique-names-generator@^4.7.1",
