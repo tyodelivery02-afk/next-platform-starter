@@ -10,6 +10,8 @@ export const maxDuration = 60;
 
 const { Pool } = pg;
 
+const KUBUN = "m";
+
 const COPY_COLUMNS = [
     "mawb_no",
     "hawb_no",
@@ -38,6 +40,8 @@ const COPY_COLUMNS = [
     "warehouse_area",
     "current_warehouse",
     "agency",
+    "import_session_id",
+    "imported_at",
     "kubun",
     "operator_ip"
 ];
@@ -75,6 +79,18 @@ function getPool() {
     return globalThis.__mochidashiPgPool;
 }
 
+function checkImportToken(req) {
+    const expectedToken = process.env.IMPORT_TOKEN;
+
+    if (!expectedToken) {
+        return true;
+    }
+
+    const actualToken = req.headers.get("x-import-token");
+
+    return actualToken === expectedToken;
+}
+
 function getClientIP(req) {
     const forwarded = req.headers.get("x-forwarded-for");
     const realIP = req.headers.get("x-real-ip");
@@ -90,18 +106,6 @@ function getClientIP(req) {
     return req.headers.get("x-client-ip") || "unknown";
 }
 
-function checkImportToken(req) {
-    const expectedToken = process.env.IMPORT_TOKEN;
-
-    if (!expectedToken) {
-        return true;
-    }
-
-    const actualToken = req.headers.get("x-import-token");
-
-    return actualToken === expectedToken;
-}
-
 function pad(value) {
     return String(value).padStart(2, "0");
 }
@@ -112,6 +116,28 @@ function text(value) {
     const result = String(value).trim();
 
     return result === "" ? null : result;
+}
+
+function normalizeKeyText(value) {
+    if (value === null || value === undefined) return "";
+
+    return String(value).trim();
+}
+
+function formatDateTime(value) {
+    if (!value) return null;
+
+    const date = value instanceof Date ? value : new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+        return null;
+    }
+
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
+function nowTimestampText() {
+    return formatDateTime(new Date());
 }
 
 function parseExcelSerialDate(value) {
@@ -139,7 +165,7 @@ function parseTimestamp(value) {
     if (value === null || value === undefined || value === "") return null;
 
     if (value instanceof Date && !Number.isNaN(value.getTime())) {
-        return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())} ${pad(value.getHours())}:${pad(value.getMinutes())}:${pad(value.getSeconds())}`;
+        return formatDateTime(value);
     }
 
     if (typeof value === "number") {
@@ -197,7 +223,7 @@ function hasData(row) {
     return false;
 }
 
-function rowToCopyLine(row, clientIP) {
+function rowToCopyLine(row, options) {
     const values = [
         text(row[0]),
         text(row[1]),
@@ -226,16 +252,26 @@ function rowToCopyLine(row, clientIP) {
         text(row[24]),
         text(row[25]),
         text(row[26]),
-        "m",
-        clientIP
+        options.importSessionId,
+        options.importedAt,
+        KUBUN,
+        options.clientIP
     ];
 
     return values.map(copyValue).join("\t") + "\n";
 }
 
-async function copyInsertRows(rows, clientIP) {
+async function copyInsertRows(rows, options) {
     const pool = getPool();
     const client = await pool.connect();
+
+    const importedAt = parseTimestamp(options.importedAt) || nowTimestampText();
+    const importSessionId = text(options.importSessionId);
+
+    if (!importSessionId) {
+        client.release();
+        throw new Error("importSessionId がありません");
+    }
 
     let processedCount = 0;
     let insertedCount = 0;
@@ -263,7 +299,11 @@ async function copyInsertRows(rows, clientIP) {
             processedCount++;
             insertedCount++;
 
-            yield rowToCopyLine(row, clientIP);
+            yield rowToCopyLine(row, {
+                importSessionId,
+                importedAt,
+                clientIP: options.clientIP
+            });
         }
     }
 
@@ -280,11 +320,263 @@ async function copyInsertRows(rows, clientIP) {
         return {
             processedCount,
             insertedCount,
-            skippedCount
+            skippedCount,
+            importedAt,
+            importSessionId
         };
     } catch (error) {
         await client.query("ROLLBACK");
         throw error;
+    } finally {
+        client.release();
+    }
+}
+
+async function processStatsForImportSession(importSessionId) {
+    const pool = getPool();
+    const client = await pool.connect();
+
+    try {
+        await client.query("BEGIN");
+
+        const importedAtResult = await client.query(
+            `
+            SELECT
+                imported_at
+            FROM night_delivery_records
+            WHERE kubun = $1
+              AND import_session_id = $2
+            ORDER BY imported_at
+            LIMIT 1
+            `,
+            [KUBUN, importSessionId]
+        );
+
+        if (importedAtResult.rowCount === 0) {
+            throw new Error("この importSessionId の取込データが見つかりません");
+        }
+
+        const importedAt = formatDateTime(importedAtResult.rows[0].imported_at);
+
+        await client.query(
+            `
+            INSERT INTO mochi_import_company_stats (
+                kubun,
+                import_session_id,
+                imported_at,
+                delivery_company,
+                count,
+                updated_at
+            )
+            SELECT
+                $1 AS kubun,
+                $2 AS import_session_id,
+                MIN(imported_at) AS imported_at,
+                COALESCE(NULLIF(delivery_company, ''), '未設定') AS delivery_company,
+                COUNT(*)::BIGINT AS count,
+                NOW() AS updated_at
+            FROM night_delivery_records
+            WHERE kubun = $1
+              AND import_session_id = $2
+            GROUP BY
+                COALESCE(NULLIF(delivery_company, ''), '未設定')
+            ON CONFLICT (
+                kubun,
+                import_session_id,
+                delivery_company
+            )
+            DO UPDATE SET
+                imported_at = EXCLUDED.imported_at,
+                count = EXCLUDED.count,
+                updated_at = NOW()
+            `,
+            [KUBUN, importSessionId]
+        );
+
+        const processedResult = await client.query(
+            `
+            INSERT INTO mochi_processed_imports (
+                kubun,
+                import_session_id,
+                imported_at,
+                processed_at
+            )
+            VALUES (
+                $1,
+                $2,
+                $3::TIMESTAMP,
+                NOW()
+            )
+            ON CONFLICT (
+                kubun,
+                import_session_id
+            )
+            DO NOTHING
+            RETURNING import_session_id
+            `,
+            [KUBUN, importSessionId, importedAt]
+        );
+
+        const isNewStats = processedResult.rowCount > 0;
+
+        if (isNewStats) {
+            await client.query(
+                `
+                INSERT INTO mochi_address_key_stats (
+                    kubun,
+                    delivery_company,
+                    receiver_address1,
+                    receiver_address2,
+                    receiver_address3,
+                    count,
+                    updated_at
+                )
+                SELECT
+                    $1 AS kubun,
+                    COALESCE(NULLIF(delivery_company, ''), '未設定') AS delivery_company,
+                    COALESCE(receiver_address1, '') AS receiver_address1,
+                    COALESCE(receiver_address2, '') AS receiver_address2,
+                    COALESCE(receiver_address3, '') AS receiver_address3,
+                    COUNT(*)::BIGINT AS count,
+                    NOW() AS updated_at
+                FROM night_delivery_records
+                WHERE kubun = $1
+                  AND import_session_id = $2
+                GROUP BY
+                    COALESCE(NULLIF(delivery_company, ''), '未設定'),
+                    COALESCE(receiver_address1, ''),
+                    COALESCE(receiver_address2, ''),
+                    COALESCE(receiver_address3, '')
+                ON CONFLICT (
+                    kubun,
+                    delivery_company,
+                    receiver_address1,
+                    receiver_address2,
+                    receiver_address3
+                )
+                DO UPDATE SET
+                    count = mochi_address_key_stats.count + EXCLUDED.count,
+                    updated_at = NOW()
+                `,
+                [KUBUN, importSessionId]
+            );
+        }
+
+        await client.query("COMMIT");
+
+        return {
+            importSessionId,
+            importedAt,
+            isNewStats
+        };
+    } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+    } finally {
+        client.release();
+    }
+}
+
+async function buildSheetStats() {
+    const pool = getPool();
+    const client = await pool.connect();
+
+    try {
+        const companyResult = await client.query(
+            `
+            SELECT
+                imported_at,
+                delivery_company,
+                SUM(count)::BIGINT AS count
+            FROM mochi_import_company_stats
+            WHERE kubun = $1
+            GROUP BY
+                imported_at,
+                delivery_company
+            ORDER BY
+                imported_at DESC,
+                delivery_company
+            `,
+            [KUBUN]
+        );
+
+        const addressResult = await client.query(
+            `
+            SELECT
+                delivery_company,
+                receiver_address1,
+                receiver_address2,
+                receiver_address3,
+                count::BIGINT AS count
+            FROM mochi_address_key_stats
+            WHERE kubun = $1
+            ORDER BY
+                count DESC,
+                delivery_company,
+                receiver_address1,
+                receiver_address2,
+                receiver_address3
+            `,
+            [KUBUN]
+        );
+
+        const companySet = new Set();
+        const importedAtSet = new Set();
+        const grouped = new Map();
+
+        companyResult.rows.forEach(row => {
+            const importedAt = formatDateTime(row.imported_at);
+            const company = row.delivery_company || "未設定";
+            const count = Number(row.count || 0);
+
+            companySet.add(company);
+            importedAtSet.add(importedAt);
+
+            if (!grouped.has(importedAt)) {
+                grouped.set(importedAt, new Map());
+            }
+
+            grouped.get(importedAt).set(company, count);
+        });
+
+        const companies = Array.from(companySet).sort((a, b) => a.localeCompare(b, "ja"));
+        const importedAts = Array.from(importedAtSet).sort().reverse();
+
+        const companySummaryHeaders = [
+            "imported_at",
+            "合計",
+            ...companies
+        ];
+
+        const companySummaryRows = importedAts.map(importedAt => {
+            const map = grouped.get(importedAt) || new Map();
+            const counts = companies.map(company => Number(map.get(company) || 0));
+            const total = counts.reduce((sum, value) => sum + value, 0);
+
+            return [
+                importedAt,
+                total,
+                ...counts
+            ];
+        });
+
+        const keyStats = addressResult.rows.map(row => {
+            return {
+                delivery_company: row.delivery_company || "",
+                receiver_address1: row.receiver_address1 || "",
+                receiver_address2: row.receiver_address2 || "",
+                receiver_address3: row.receiver_address3 || "",
+                count: Number(row.count || 0)
+            };
+        });
+
+        return {
+            companySummary: {
+                headers: companySummaryHeaders,
+                rows: companySummaryRows
+            },
+            keyStats
+        };
     } finally {
         client.release();
     }
@@ -330,13 +622,19 @@ export async function POST(req) {
         }
 
         const clientIP = getClientIP(req);
-        const result = await copyInsertRows(rows, clientIP);
+
+        const result = await copyInsertRows(rows, {
+            clientIP,
+            importSessionId: text(body.importSessionId),
+            importedAt: text(body.importedAt)
+        });
 
         return NextResponse.json({
             success: true,
-            kubun: "m",
+            kubun: KUBUN,
+            importedAt: result.importedAt,
+            importSessionId: result.importSessionId,
             fileName: body.fileName || null,
-            importSessionId: body.importSessionId || null,
             chunkIndex: body.chunkIndex || 1,
             chunksTotal: body.chunksTotal || 1,
             processedCount: result.processedCount,
@@ -351,6 +649,48 @@ export async function POST(req) {
             {
                 success: false,
                 error: error?.message || "インポートに失敗しました"
+            },
+            { status: 500 }
+        );
+    }
+}
+
+export async function GET(req) {
+    try {
+        if (!checkImportToken(req)) {
+            return NextResponse.json(
+                {
+                    success: false,
+                    error: "認証トークンが正しくありません"
+                },
+                { status: 401 }
+            );
+        }
+
+        const { searchParams } = new URL(req.url);
+        const importSessionId = text(searchParams.get("importSessionId"));
+
+        let processedImport = null;
+
+        if (importSessionId) {
+            processedImport = await processStatsForImportSession(importSessionId);
+        }
+
+        const stats = await buildSheetStats();
+
+        return NextResponse.json({
+            success: true,
+            kubun: KUBUN,
+            processedImport,
+            ...stats
+        });
+    } catch (error) {
+        console.error("Mochidashi stats GET error:", error);
+
+        return NextResponse.json(
+            {
+                success: false,
+                error: error?.message || "集計データ取得に失敗しました"
             },
             { status: 500 }
         );
