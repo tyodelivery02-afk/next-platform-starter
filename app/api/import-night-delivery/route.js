@@ -329,7 +329,9 @@ function makeNightEventCandidates(row) {
             row,
             completedAt,
             deliveryFailedAt: null,
-            timeIndex: idxP
+            failureReason: null,
+            timeIndex: idxP,
+            eventType: "completed"
         });
     }
 
@@ -338,7 +340,9 @@ function makeNightEventCandidates(row) {
             row,
             completedAt: null,
             deliveryFailedAt,
-            timeIndex: idxR
+            failureReason: text(row[22]),
+            timeIndex: idxR,
+            eventType: "failed"
         });
     }
 
@@ -436,6 +440,7 @@ function buildNightInsertValues(row, options) {
         text(row[19]),
         parseTimestamp(row[20]),
         parseTimestamp(row[21]),
+        options.failureReason,
         text(row[22]),
         text(row[23]),
         text(row[24]),
@@ -749,7 +754,8 @@ async function insertNightRows(rows, options) {
                     importedAt,
                     operatorEmail: options.operatorEmail,
                     completedAt: candidate.completedAt,
-                    deliveryFailedAt: candidate.deliveryFailedAt
+                    deliveryFailedAt: candidate.deliveryFailedAt,
+                    failureReason: candidate.failureReason
                 });
 
                 values.push(...rowValues);
