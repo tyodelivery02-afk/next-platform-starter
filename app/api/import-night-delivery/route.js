@@ -911,8 +911,11 @@ async function buildSheetStats() {
 
         const failureReasons = Array.from(failureReasonSet).sort((a, b) => a.localeCompare(b, "ja"));
 
-        const companies = Array.from(companyMap.values()).sort((a, b) => {
-            return a.company.localeCompare(b.company, "ja");
+        const companies = Array.from(companyMap.values()).map(company => {
+            return {
+                ...company,
+                total: Number(company.completed || 0) + Number(company.failed || 0)
+            };
         });
 
         const drivers = Array.from(driverMap.values()).sort((a, b) => {
