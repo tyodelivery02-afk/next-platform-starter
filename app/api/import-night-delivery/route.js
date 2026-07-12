@@ -190,20 +190,10 @@ function parseTimestamp(value) {
         return parseExcelSerialDate(value);
     }
 
-    const raw = String(value).trim();
+    const raw = normalizeDateTimeText(value);
 
     if (!raw) {
         return null;
-    }
-
-    const isoMatched = raw.match(
-        /^(\d{4})-(\d{1,2})-(\d{1,2})[\sT]+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?$/
-    );
-
-    if (isoMatched) {
-        const [, year, month, day, hour = "0", minute = "0", second = "0"] = isoMatched;
-
-        return `${year}-${pad(month)}-${pad(day)} ${pad(hour)}:${pad(minute)}:${pad(second)}`;
     }
 
     const matched = raw.match(
@@ -233,30 +223,96 @@ function hasData(row) {
     return false;
 }
 
-function getHourFromTimestamp(value) {
-    const parsed = parseTimestamp(value);
-
-    if (!parsed) {
-        return null;
-    }
-
-    const matched = parsed.match(/^\d{4}-\d{2}-\d{2} (\d{2}):/);
-
-    if (!matched) {
-        return null;
-    }
-
-    return Number(matched[1]);
+function normalizeDateTimeText(value) {
+    return String(value)
+        .replace(/\u3000/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
 }
 
-function isNightHour(value) {
-    const hour = getHourFromTimestamp(value);
+function getHourLikeVbaCDate(value) {
+    if (value === null || value === undefined || value === "") {
+        return null;
+    }
 
-    return hour !== null && NIGHT_HOURS.has(hour);
+    if (typeof value === "number") {
+        const serial = Number(value);
+
+        if (!Number.isFinite(serial)) {
+            return null;
+        }
+
+        const fractionalDay = serial - Math.floor(serial);
+        const normalizedFraction = fractionalDay < 0
+            ? fractionalDay + 1
+            : fractionalDay;
+
+        return Math.floor(normalizedFraction * 24);
+    }
+
+    const raw = normalizeDateTimeText(value);
+
+    if (!raw) {
+        return null;
+    }
+
+    // 例：2026/7/12  2:24:59
+    // 例：2026/7/12 2:24:59
+    // 例：2026-07-12 02:24:59
+    // 例：2026-07-12T02:24:59
+    const dateTimeMatched = raw.match(
+        /^\d{4}[-/]\d{1,2}[-/]\d{1,2}(?:[\sT]+(\d{1,2})(?::\d{1,2})?(?::\d{1,2})?)?$/
+    );
+
+    if (dateTimeMatched) {
+        const hour = dateTimeMatched[1] === undefined
+            ? 0
+            : Number(dateTimeMatched[1]);
+
+        return Number.isFinite(hour) ? hour : null;
+    }
+
+    // 念のため、時刻だけの値にも対応
+    // 例：2:24:59
+    const timeOnlyMatched = raw.match(/^(\d{1,2})(?::\d{1,2})?(?::\d{1,2})?$/);
+
+    if (timeOnlyMatched) {
+        const hour = Number(timeOnlyMatched[1]);
+
+        return Number.isFinite(hour) ? hour : null;
+    }
+
+    return null;
+}
+
+function timeIndexFromValue(value) {
+    const hour = getHourLikeVbaCDate(value);
+
+    if (hour === null) {
+        return -1;
+    }
+
+    if (hour === 22) {
+        return 0;
+    }
+
+    if (hour === 23) {
+        return 1;
+    }
+
+    if (hour >= 0 && hour <= 7) {
+        return hour + 2;
+    }
+
+    return -1;
+}
+
+function isNightTimeValue(value) {
+    return timeIndexFromValue(value) >= 0;
 }
 
 function isNightRow(row) {
-    return isNightHour(row[15]) || isNightHour(row[17]);
+    return isNightTimeValue(row[15]) || isNightTimeValue(row[17]);
 }
 
 function makeNightEventCandidates(row) {
@@ -265,19 +321,24 @@ function makeNightEventCandidates(row) {
     const completedAt = parseTimestamp(row[15]);       // P列
     const deliveryFailedAt = parseTimestamp(row[17]);  // R列
 
-    if (isNightHour(row[15])) {
+    const idxP = timeIndexFromValue(row[15]);
+    const idxR = timeIndexFromValue(row[17]);
+
+    if (idxP >= 0) {
         candidates.push({
             row,
             completedAt,
-            deliveryFailedAt: null
+            deliveryFailedAt: null,
+            timeIndex: idxP
         });
     }
 
-    if (isNightHour(row[17])) {
+    if (idxR >= 0) {
         candidates.push({
             row,
             completedAt: null,
-            deliveryFailedAt
+            deliveryFailedAt,
+            timeIndex: idxR
         });
     }
 
