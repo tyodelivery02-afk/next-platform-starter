@@ -197,7 +197,7 @@ function parseTimestamp(value) {
     }
 
     const isoMatched = raw.match(
-        /^(\d{4})-(\d{1,2})-(\d{1,2})T(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?/
+        /^(\d{4})-(\d{1,2})-(\d{1,2})[\sT]+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?$/
     );
 
     if (isoMatched) {
@@ -207,7 +207,7 @@ function parseTimestamp(value) {
     }
 
     const matched = raw.match(
-        /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/
+        /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[\sT]+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?$/
     );
 
     if (matched) {
@@ -257,6 +257,40 @@ function isNightHour(value) {
 
 function isNightRow(row) {
     return isNightHour(row[15]) || isNightHour(row[17]);
+}
+
+function makeNightEventCandidates(row) {
+    const candidates = [];
+
+    const completedAt = parseTimestamp(row[15]);       // P列
+    const deliveryFailedAt = parseTimestamp(row[17]);  // R列
+
+    if (isNightHour(row[15])) {
+        candidates.push({
+            row,
+            completedAt,
+            deliveryFailedAt: null
+        });
+    }
+
+    if (isNightHour(row[17])) {
+        candidates.push({
+            row,
+            completedAt: null,
+            deliveryFailedAt
+        });
+    }
+
+    return candidates;
+}
+
+function makeNightDedupKey(row, completedAt, deliveryFailedAt) {
+    return [
+        KUBUN,
+        text(row[1]) || "",
+        completedAt || "",
+        deliveryFailedAt || ""
+    ].join("|||");
 }
 
 function timestampMin(current, value) {
@@ -334,9 +368,9 @@ function buildNightInsertValues(row, options) {
         text(row[12]),
         parseTimestamp(row[13]),
         parseTimestamp(row[14]),
-        parseTimestamp(row[15]),
+        options.completedAt,
         parseTimestamp(row[16]),
-        parseTimestamp(row[17]),
+        options.deliveryFailedAt,
         parseTimestamp(row[18]),
         text(row[19]),
         parseTimestamp(row[20]),
@@ -613,11 +647,6 @@ async function insertNightRows(rows, options) {
 
             processedCount++;
 
-            if (!isNightRow(row)) {
-                skippedCount++;
-                continue;
-            }
-
             const hawbNo = text(row[1]);
 
             if (!hawbNo) {
@@ -625,24 +654,41 @@ async function insertNightRows(rows, options) {
                 continue;
             }
 
-            if (seenInChunk.has(hawbNo)) {
+            const eventCandidates = makeNightEventCandidates(row);
+
+            if (eventCandidates.length === 0) {
                 skippedCount++;
                 continue;
             }
 
-            seenInChunk.add(hawbNo);
-            candidates.push(row);
+            eventCandidates.forEach(candidate => {
+                const dedupKey = makeNightDedupKey(
+                    row,
+                    candidate.completedAt,
+                    candidate.deliveryFailedAt
+                );
+
+                if (seenInChunk.has(dedupKey)) {
+                    skippedCount++;
+                    return;
+                }
+
+                seenInChunk.add(dedupKey);
+                candidates.push(candidate);
+            });
         }
 
         if (candidates.length > 0) {
             const columnCount = COPY_COLUMNS.length;
             const values = [];
 
-            const placeholders = candidates.map((row, rowIndex) => {
-                const rowValues = buildNightInsertValues(row, {
+            const placeholders = candidates.map((candidate, rowIndex) => {
+                const rowValues = buildNightInsertValues(candidate.row, {
                     importSessionId,
                     importedAt,
-                    operatorEmail: options.operatorEmail
+                    operatorEmail: options.operatorEmail,
+                    completedAt: candidate.completedAt,
+                    deliveryFailedAt: candidate.deliveryFailedAt
                 });
 
                 values.push(...rowValues);
@@ -659,11 +705,7 @@ async function insertNightRows(rows, options) {
         )
         VALUES
           ${placeholders.join(",\n")}
-        ON CONFLICT (hawb_no)
-        WHERE kubun = 's'
-          AND hawb_no IS NOT NULL
-          AND hawb_no <> ''
-        DO NOTHING
+        ON CONFLICT DO NOTHING
         RETURNING hawb_no
         `,
                 values
