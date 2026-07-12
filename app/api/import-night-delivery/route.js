@@ -418,34 +418,33 @@ function getSourceDateRanges(rows) {
 
 function buildNightInsertValues(row, options) {
     return [
-        text(row[0]),
-        text(row[1]),
-        text(row[2]),
-        text(row[3]),
-        text(row[4]),
-        text(row[5]),
-        text(row[6]),
-        text(row[7]),
-        text(row[8]),
-        text(row[9]),
-        text(row[10]),
-        text(row[11]),
-        text(row[12]),
-        parseTimestamp(row[13]),
-        parseTimestamp(row[14]),
-        options.completedAt,
-        parseTimestamp(row[16]),
-        options.deliveryFailedAt,
-        parseTimestamp(row[18]),
-        text(row[19]),
-        parseTimestamp(row[20]),
-        parseTimestamp(row[21]),
-        options.failureReason,
-        text(row[22]),
-        text(row[23]),
-        text(row[24]),
-        text(row[25]),
-        text(row[26]),
+        text(row[0]),              // mawb_no
+        text(row[1]),              // hawb_no
+        text(row[2]),              // transfer_no
+        text(row[3]),              // delivery_company
+        text(row[4]),              // sender_address
+        text(row[5]),              // receiver_name
+        text(row[6]),              // receiver_address
+        text(row[7]),              // receiver_address1
+        text(row[8]),              // receiver_address2
+        text(row[9]),              // receiver_address3
+        text(row[10]),             // driver_name
+        text(row[11]),             // delivery_method
+        text(row[12]),             // order_status
+        parseTimestamp(row[13]),   // inbound_at, N列
+        parseTimestamp(row[14]),   // delivery_started_at, O列
+        options.completedAt,       // completed_at, P列 event
+        parseTimestamp(row[16]),   // returned_at, Q列
+        options.deliveryFailedAt,  // delivery_failed_at, R列 event
+        parseTimestamp(row[18]),   // returned_to_shipper_at, S列
+        text(row[19]),             // delay_time, T列
+        parseTimestamp(row[20]),   // redelivery_start_at, U列
+        parseTimestamp(row[21]),   // redelivery_end_at, V列
+        options.failureReason,     // failure_reason, W列。只有 failed event 写入
+        text(row[23]),             // failure_detail, X列
+        text(row[24]),             // warehouse_area, Y列
+        text(row[25]),             // current_warehouse, Z列
+        text(row[26]),             // agency, AA列
         options.importSessionId,
         options.importedAt,
         KUBUN,
@@ -954,6 +953,28 @@ async function buildSheetStats() {
             if (eventType === "completed") {
                 total.completed += count;
                 totalBucket.completed += count;
+
+                const driverKey = `${company}|||${driverName}`;
+
+                if (!driverMap.has(driverKey)) {
+                    const driverItem = {
+                        company,
+                        driver_name: driverName,
+                        total: 0,
+                        buckets: {}
+                    };
+
+                    TIME_BUCKETS.forEach(label => {
+                        driverItem.buckets[label] = 0;
+                    });
+
+                    driverMap.set(driverKey, driverItem);
+                }
+
+                const driverItem = driverMap.get(driverKey);
+
+                driverItem.total += count;
+                driverItem.buckets[timeBucket] = Number(driverItem.buckets[timeBucket] || 0) + count;
             }
 
             if (eventType === "failed") {
@@ -995,27 +1016,6 @@ async function buildSheetStats() {
                 addFailureReason(companyBucket.failureReasons, failureReason, count);
             }
 
-            const driverKey = `${company}|||${driverName}`;
-
-            if (!driverMap.has(driverKey)) {
-                const driverItem = {
-                    company,
-                    driver_name: driverName,
-                    total: 0,
-                    buckets: {}
-                };
-
-                TIME_BUCKETS.forEach(label => {
-                    driverItem.buckets[label] = 0;
-                });
-
-                driverMap.set(driverKey, driverItem);
-            }
-
-            const driverItem = driverMap.get(driverKey);
-
-            driverItem.total += count;
-            driverItem.buckets[timeBucket] = Number(driverItem.buckets[timeBucket] || 0) + count;
         });
 
         const failureReasons = Array.from(failureReasonSet).sort((a, b) => a.localeCompare(b, "ja"));
