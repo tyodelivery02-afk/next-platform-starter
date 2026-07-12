@@ -310,10 +310,35 @@ async function copyInsertRows(rows, options) {
     try {
         await client.query("BEGIN");
 
+        await upsertImportLogStart_(client, {
+            importSessionId,
+            fileName: options.fileName,
+            kubun: KUBUN,
+            sourceTotalRows: options.sourceTotalRows,
+            chunksTotal: options.chunksTotal,
+            operatorEmail: options.clientIP
+        });
+
         const copyStream = client.query(copyFrom(copySql));
         const source = Readable.from(lineGenerator(), { encoding: "utf8" });
 
         await pipeline(source, copyStream);
+
+        await refreshImportLogDateRanges_(client, {
+            importSessionId,
+            kubun: KUBUN
+        });
+
+        await updateImportLogChunk_(client, {
+            importSessionId,
+            processedCount,
+            insertedCount,
+            skippedCount,
+            chunkIndex: options.chunkIndex,
+            chunksTotal: options.chunksTotal,
+            isLastChunk: options.isLastChunk,
+            elapsedMs: options.elapsedMs
+        });
 
         await client.query("COMMIT");
 
@@ -437,7 +462,7 @@ async function processStatsForImportSession(importSessionId) {
                     COALESCE(receiver_address1, '') AS receiver_address1,
                     COALESCE(receiver_address2, '') AS receiver_address2,
                     COALESCE(receiver_address3, '') AS receiver_address3,
-                    COUNT(*)::BIGINT AS count,
+                    COUNT(DISTINCT NULLIF(hawb_no, ''))::BIGINT AS count,
                     NOW() AS updated_at
                 FROM night_delivery_records
                 WHERE kubun = $1
@@ -582,6 +607,126 @@ async function buildSheetStats() {
     }
 }
 
+async function upsertImportLogStart_(client, options) {
+    await client.query(
+        `
+        INSERT INTO night_delivery_import_logs (
+            import_session_id,
+            file_name,
+            kubun,
+            source_total_rows,
+            chunks_total,
+            operator_ip,
+            status,
+            started_at,
+            created_at,
+            updated_at
+        )
+        VALUES (
+            $1,
+            $2,
+            $3,
+            $4,
+            $5,
+            $6,
+            'processing',
+            NOW(),
+            NOW(),
+            NOW()
+        )
+        ON CONFLICT (import_session_id)
+        DO UPDATE SET
+            file_name = COALESCE(night_delivery_import_logs.file_name, EXCLUDED.file_name),
+            source_total_rows = GREATEST(night_delivery_import_logs.source_total_rows, EXCLUDED.source_total_rows),
+            chunks_total = GREATEST(night_delivery_import_logs.chunks_total, EXCLUDED.chunks_total),
+            operator_ip = EXCLUDED.operator_ip,
+            status = 'processing',
+            updated_at = NOW()
+        `,
+        [
+            options.importSessionId,
+            options.fileName || null,
+            options.kubun,
+            Number(options.sourceTotalRows || 0),
+            Number(options.chunksTotal || 1),
+            options.operatorEmail || ""
+        ]
+    );
+}
+
+async function updateImportLogChunk_(client, options) {
+    await client.query(
+        `
+        UPDATE night_delivery_import_logs
+        SET
+            processed_rows = processed_rows + $2,
+            inserted_total_rows = inserted_total_rows + $3,
+            skipped_total_rows = skipped_total_rows + $4,
+            chunks_completed = GREATEST(chunks_completed, $5),
+            status = CASE WHEN $6 THEN 'completed' ELSE status END,
+            finished_at = CASE WHEN $6 THEN NOW() ELSE finished_at END,
+            elapsed_ms = CASE WHEN $6 THEN $7 ELSE elapsed_ms END,
+            updated_at = NOW()
+        WHERE import_session_id = $1
+        `,
+        [
+            options.importSessionId,
+            Number(options.processedCount || 0),
+            Number(options.insertedCount || 0),
+            Number(options.skippedCount || 0),
+            Number(options.chunkIndex || 1),
+            Boolean(options.isLastChunk),
+            Number(options.elapsedMs || 0)
+        ]
+    );
+}
+
+async function refreshImportLogDateRanges_(client, options) {
+    await client.query(
+        `
+        WITH stats AS (
+            SELECT
+                MIN(completed_at) AS min_completed_at,
+                MAX(completed_at) AS max_completed_at,
+                MIN(delivery_failed_at) AS min_delivery_failed_at,
+                MAX(delivery_failed_at) AS max_delivery_failed_at,
+                LEAST(
+                    MIN(completed_at),
+                    MIN(delivery_failed_at)
+                ) AS min_event_at,
+                GREATEST(
+                    MAX(completed_at),
+                    MAX(delivery_failed_at)
+                ) AS max_event_at
+            FROM night_delivery_records
+            WHERE import_session_id = $1
+              AND kubun = $2
+        )
+        UPDATE night_delivery_import_logs
+        SET
+            inserted_min_completed_at = stats.min_completed_at,
+            inserted_max_completed_at = stats.max_completed_at,
+            inserted_min_delivery_failed_at = stats.min_delivery_failed_at,
+            inserted_max_delivery_failed_at = stats.max_delivery_failed_at,
+            inserted_min_event_at = stats.min_event_at,
+            inserted_max_event_at = stats.max_event_at,
+            source_min_completed_at = stats.min_completed_at,
+            source_max_completed_at = stats.max_completed_at,
+            source_min_delivery_failed_at = stats.min_delivery_failed_at,
+            source_max_delivery_failed_at = stats.max_delivery_failed_at,
+            source_min_event_at = stats.min_event_at,
+            source_max_event_at = stats.max_event_at,
+            updated_at = NOW()
+        FROM stats
+        WHERE night_delivery_import_logs.import_session_id = $1
+        `,
+        [
+            options.importSessionId,
+            options.kubun
+        ]
+    );
+}
+
 export async function POST(req) {
     const startedAt = Date.now();
 
@@ -621,12 +766,18 @@ export async function POST(req) {
             );
         }
 
-        const clientIP = getClientIP(req);
+        const operatorEmail = text(body.operatorEmail) || getClientIP(req);
 
         const result = await copyInsertRows(rows, {
-            clientIP,
+            clientIP: operatorEmail,
             importSessionId: text(body.importSessionId),
-            importedAt: text(body.importedAt)
+            importedAt: text(body.importedAt),
+            fileName: body.fileName || null,
+            sourceTotalRows: Number(body.sourceTotalRows || rows.length),
+            chunkIndex: Number(body.chunkIndex || 1),
+            chunksTotal: Number(body.chunksTotal || 1),
+            isLastChunk: Boolean(body.isLastChunk),
+            elapsedMs: Date.now() - startedAt
         });
 
         return NextResponse.json({
