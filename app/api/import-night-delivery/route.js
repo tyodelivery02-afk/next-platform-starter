@@ -103,6 +103,12 @@ function normalizeText(value, fallback = "未設定") {
     return result || fallback;
 }
 
+function normalizeFailureReason(value) {
+    const result = text(value);
+
+    return result || "";
+}
+
 function formatDateTime(value) {
     if (!value) {
         return null;
@@ -690,13 +696,15 @@ function buildNightStatsFromRows(rows, options) {
             }
 
             if (candidate.eventType === "failed") {
-                const failureReason = normalizeText(candidate.failureReason);
+                const failureReason = normalizeFailureReason(candidate.failureReason);
 
                 stats.total.failed++;
                 companyItem.failed++;
-                addMapCount(companyItem.failureReasons, failureReason, 1);
-            }
 
+                if (failureReason) {
+                    addMapCount(companyItem.failureReasons, failureReason, 1);
+                }
+            }
             stats.insertedCount++;
         });
     });
