@@ -585,13 +585,36 @@ function formatImportDate(value) {
     return parsed.slice(0, 10).replace(/-/g, "/");
 }
 
+function emptyTimeBucketCounts() {
+    const result = {};
+
+    TIME_BUCKETS.forEach(label => {
+        result[label] = 0;
+    });
+
+    return result;
+}
+
+function ensureFailureReasonTimeBuckets(companyItem, failureReason) {
+    if (!companyItem.failureReasonBuckets) {
+        companyItem.failureReasonBuckets = {};
+    }
+
+    if (!companyItem.failureReasonBuckets[failureReason]) {
+        companyItem.failureReasonBuckets[failureReason] = emptyTimeBucketCounts();
+    }
+
+    return companyItem.failureReasonBuckets[failureReason];
+}
+
 function emptyCompanyStats(company) {
     const item = {
         company,
         completed: 0,
         failed: 0,
         buckets: {},
-        failureReasons: {}
+        failureReasons: {},
+        failureReasonBuckets: {}
     };
 
     TIME_BUCKETS.forEach(label => {
@@ -703,6 +726,9 @@ function buildNightStatsFromRows(rows, options) {
 
                 if (failureReason) {
                     addMapCount(companyItem.failureReasons, failureReason, 1);
+
+                    const reasonBuckets = ensureFailureReasonTimeBuckets(companyItem, failureReason);
+                    reasonBuckets[timeBucket] = Number(reasonBuckets[timeBucket] || 0) + 1;
                 }
             }
             stats.insertedCount++;
@@ -762,15 +788,32 @@ function mergeNightStats(baseStats, chunkStats) {
     chunkStats.companies.forEach(company => {
         const target = ensureCompanyStats(companyMap, company.company);
 
+        if (!target.failureReasonBuckets) {
+            target.failureReasonBuckets = {};
+        }
+
         target.completed = Number(target.completed || 0) + Number(company.completed || 0);
         target.failed = Number(target.failed || 0) + Number(company.failed || 0);
 
         TIME_BUCKETS.forEach(label => {
-            target.buckets[label] = Number(target.buckets[label] || 0) + Number((company.buckets || {})[label] || 0);
+            target.buckets[label] =
+                Number(target.buckets[label] || 0) +
+                Number((company.buckets || {})[label] || 0);
         });
 
         Object.keys(company.failureReasons || {}).forEach(reason => {
             addMapCount(target.failureReasons, reason, company.failureReasons[reason]);
+        });
+
+        Object.keys(company.failureReasonBuckets || {}).forEach(reason => {
+            const targetReasonBuckets = ensureFailureReasonTimeBuckets(target, reason);
+            const sourceReasonBuckets = company.failureReasonBuckets[reason] || {};
+
+            TIME_BUCKETS.forEach(label => {
+                targetReasonBuckets[label] =
+                    Number(targetReasonBuckets[label] || 0) +
+                    Number(sourceReasonBuckets[label] || 0);
+            });
         });
     });
 
