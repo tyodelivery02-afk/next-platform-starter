@@ -9,8 +9,6 @@ const { Pool } = pg;
 
 const KUBUN = "s";
 
-const NIGHT_HOURS = new Set([22, 23, 0, 1, 2, 3, 4, 5, 6, 7]);
-
 const TIME_BUCKETS = [
     "22時台",
     "23時台",
@@ -24,39 +22,6 @@ const TIME_BUCKETS = [
     "7時台"
 ];
 
-const COPY_COLUMNS = [
-    "mawb_no",
-    "hawb_no",
-    "transfer_no",
-    "delivery_company",
-    "sender_address",
-    "receiver_name",
-    "receiver_address",
-    "receiver_address1",
-    "receiver_address2",
-    "receiver_address3",
-    "driver_name",
-    "delivery_method",
-    "order_status",
-    "inbound_at",
-    "delivery_started_at",
-    "completed_at",
-    "returned_at",
-    "delivery_failed_at",
-    "returned_to_shipper_at",
-    "delay_time",
-    "redelivery_start_at",
-    "redelivery_end_at",
-    "failure_reason",
-    "failure_detail",
-    "warehouse_area",
-    "current_warehouse",
-    "agency",
-    "import_session_id",
-    "imported_at",
-    "kubun",
-    "operator_ip"
-];
 
 function getConnectionString() {
     const connectionString =
@@ -307,14 +272,6 @@ function timeIndexFromValue(value) {
     return -1;
 }
 
-function isNightTimeValue(value) {
-    return timeIndexFromValue(value) >= 0;
-}
-
-function isNightRow(row) {
-    return isNightTimeValue(row[15]) || isNightTimeValue(row[17]);
-}
-
 function makeNightEventCandidates(row) {
     const candidates = [];
 
@@ -349,15 +306,6 @@ function makeNightEventCandidates(row) {
     return candidates;
 }
 
-function makeNightDedupKey(row, completedAt, deliveryFailedAt) {
-    return [
-        KUBUN,
-        text(row[1]) || "",
-        completedAt || "",
-        deliveryFailedAt || ""
-    ].join("|||");
-}
-
 function timestampMin(current, value) {
     if (!value) {
         return current;
@@ -382,76 +330,6 @@ function timestampMax(current, value) {
     return value > current ? value : current;
 }
 
-function getSourceDateRanges(rows) {
-    const ranges = {
-        sourceMinCompletedAt: null,
-        sourceMaxCompletedAt: null,
-        sourceMinDeliveryFailedAt: null,
-        sourceMaxDeliveryFailedAt: null,
-        sourceMinEventAt: null,
-        sourceMaxEventAt: null
-    };
-
-    rows.forEach(row => {
-        if (!hasData(row)) {
-            return;
-        }
-
-        const completedAt = parseTimestamp(row[15]);
-        const deliveryFailedAt = parseTimestamp(row[17]);
-
-        ranges.sourceMinCompletedAt = timestampMin(ranges.sourceMinCompletedAt, completedAt);
-        ranges.sourceMaxCompletedAt = timestampMax(ranges.sourceMaxCompletedAt, completedAt);
-
-        ranges.sourceMinDeliveryFailedAt = timestampMin(ranges.sourceMinDeliveryFailedAt, deliveryFailedAt);
-        ranges.sourceMaxDeliveryFailedAt = timestampMax(ranges.sourceMaxDeliveryFailedAt, deliveryFailedAt);
-
-        ranges.sourceMinEventAt = timestampMin(ranges.sourceMinEventAt, completedAt);
-        ranges.sourceMinEventAt = timestampMin(ranges.sourceMinEventAt, deliveryFailedAt);
-
-        ranges.sourceMaxEventAt = timestampMax(ranges.sourceMaxEventAt, completedAt);
-        ranges.sourceMaxEventAt = timestampMax(ranges.sourceMaxEventAt, deliveryFailedAt);
-    });
-
-    return ranges;
-}
-
-function buildNightInsertValues(row, options) {
-    return [
-        text(row[0]),              // mawb_no
-        text(row[1]),              // hawb_no
-        text(row[2]),              // transfer_no
-        text(row[3]),              // delivery_company
-        text(row[4]),              // sender_address
-        text(row[5]),              // receiver_name
-        text(row[6]),              // receiver_address
-        text(row[7]),              // receiver_address1
-        text(row[8]),              // receiver_address2
-        text(row[9]),              // receiver_address3
-        text(row[10]),             // driver_name
-        text(row[11]),             // delivery_method
-        text(row[12]),             // order_status
-        parseTimestamp(row[13]),   // inbound_at, N列
-        parseTimestamp(row[14]),   // delivery_started_at, O列
-        options.completedAt,       // completed_at, P列 event
-        parseTimestamp(row[16]),   // returned_at, Q列
-        options.deliveryFailedAt,  // delivery_failed_at, R列 event
-        parseTimestamp(row[18]),   // returned_to_shipper_at, S列
-        text(row[19]),             // delay_time, T列
-        parseTimestamp(row[20]),   // redelivery_start_at, U列
-        parseTimestamp(row[21]),   // redelivery_end_at, V列
-        options.failureReason,     // failure_reason, W列。只有 failed event 写入
-        text(row[23]),             // failure_detail, X列
-        text(row[24]),             // warehouse_area, Y列
-        text(row[25]),             // current_warehouse, Z列
-        text(row[26]),             // agency, AA列
-        options.importSessionId,
-        options.importedAt,
-        KUBUN,
-        options.operatorEmail
-    ];
-}
-
 async function upsertImportLogStart(client, options) {
     await client.query(
         `
@@ -459,6 +337,7 @@ async function upsertImportLogStart(client, options) {
       import_session_id,
       file_name,
       kubun,
+      imported_at,
       source_total_rows,
       chunks_total,
       operator_ip,
@@ -471,9 +350,10 @@ async function upsertImportLogStart(client, options) {
       $1,
       $2,
       $3,
-      $4,
+      $4::TIMESTAMP,
       $5,
       $6,
+      $7,
       'processing',
       NOW(),
       NOW(),
@@ -482,6 +362,7 @@ async function upsertImportLogStart(client, options) {
     ON CONFLICT (import_session_id)
     DO UPDATE SET
       file_name = COALESCE(night_delivery_import_logs.file_name, EXCLUDED.file_name),
+      imported_at = COALESCE(night_delivery_import_logs.imported_at, EXCLUDED.imported_at),
       source_total_rows = GREATEST(night_delivery_import_logs.source_total_rows, EXCLUDED.source_total_rows),
       chunks_total = GREATEST(night_delivery_import_logs.chunks_total, EXCLUDED.chunks_total),
       operator_ip = EXCLUDED.operator_ip,
@@ -492,6 +373,7 @@ async function upsertImportLogStart(client, options) {
             options.importSessionId,
             options.fileName || null,
             options.kubun,
+            options.importedAt,
             Number(options.sourceTotalRows || 0),
             Number(options.chunksTotal || 1),
             options.operatorEmail || ""
@@ -499,126 +381,56 @@ async function upsertImportLogStart(client, options) {
     );
 }
 
-async function mergeImportLogSourceRanges(client, options) {
-    await client.query(
+async function getExistingNightStats(client, importSessionId) {
+    const result = await client.query(
         `
-    UPDATE night_delivery_import_logs
-    SET
-      source_min_completed_at =
-        CASE
-          WHEN $2::TIMESTAMP IS NULL THEN source_min_completed_at
-          WHEN source_min_completed_at IS NULL THEN $2::TIMESTAMP
-          ELSE LEAST(source_min_completed_at, $2::TIMESTAMP)
-        END,
-      source_max_completed_at =
-        CASE
-          WHEN $3::TIMESTAMP IS NULL THEN source_max_completed_at
-          WHEN source_max_completed_at IS NULL THEN $3::TIMESTAMP
-          ELSE GREATEST(source_max_completed_at, $3::TIMESTAMP)
-        END,
-      source_min_delivery_failed_at =
-        CASE
-          WHEN $4::TIMESTAMP IS NULL THEN source_min_delivery_failed_at
-          WHEN source_min_delivery_failed_at IS NULL THEN $4::TIMESTAMP
-          ELSE LEAST(source_min_delivery_failed_at, $4::TIMESTAMP)
-        END,
-      source_max_delivery_failed_at =
-        CASE
-          WHEN $5::TIMESTAMP IS NULL THEN source_max_delivery_failed_at
-          WHEN source_max_delivery_failed_at IS NULL THEN $5::TIMESTAMP
-          ELSE GREATEST(source_max_delivery_failed_at, $5::TIMESTAMP)
-        END,
-      source_min_event_at =
-        CASE
-          WHEN $6::TIMESTAMP IS NULL THEN source_min_event_at
-          WHEN source_min_event_at IS NULL THEN $6::TIMESTAMP
-          ELSE LEAST(source_min_event_at, $6::TIMESTAMP)
-        END,
-      source_max_event_at =
-        CASE
-          WHEN $7::TIMESTAMP IS NULL THEN source_max_event_at
-          WHEN source_max_event_at IS NULL THEN $7::TIMESTAMP
-          ELSE GREATEST(source_max_event_at, $7::TIMESTAMP)
-        END,
-      updated_at = NOW()
-    WHERE import_session_id = $1
-    `,
-        [
-            options.importSessionId,
-            options.sourceMinCompletedAt,
-            options.sourceMaxCompletedAt,
-            options.sourceMinDeliveryFailedAt,
-            options.sourceMaxDeliveryFailedAt,
-            options.sourceMinEventAt,
-            options.sourceMaxEventAt
-        ]
+        SELECT stats_json
+        FROM night_delivery_import_logs
+        WHERE import_session_id = $1
+        FOR UPDATE
+        `,
+        [importSessionId]
     );
+
+    if (result.rows.length === 0) {
+        return null;
+    }
+
+    return result.rows[0].stats_json || null;
 }
 
-async function refreshImportLogInsertedRanges(client, options) {
+async function saveNightStatsToLog(client, options) {
+    const stats = options.stats;
+
     await client.query(
         `
-    WITH inserted_events AS (
-      SELECT completed_at AS event_at, 'completed' AS event_type
-      FROM night_delivery_records
-      WHERE import_session_id = $1
-        AND kubun = $2
-        AND completed_at IS NOT NULL
-
-      UNION ALL
-
-      SELECT delivery_failed_at AS event_at, 'failed' AS event_type
-      FROM night_delivery_records
-      WHERE import_session_id = $1
-        AND kubun = $2
-        AND delivery_failed_at IS NOT NULL
-    ),
-    stats AS (
-      SELECT
-        MIN(event_at) FILTER (WHERE event_type = 'completed') AS min_completed_at,
-        MAX(event_at) FILTER (WHERE event_type = 'completed') AS max_completed_at,
-        MIN(event_at) FILTER (WHERE event_type = 'failed') AS min_delivery_failed_at,
-        MAX(event_at) FILTER (WHERE event_type = 'failed') AS max_delivery_failed_at,
-        MIN(event_at) AS min_event_at,
-        MAX(event_at) AS max_event_at
-      FROM inserted_events
-    )
-    UPDATE night_delivery_import_logs
-    SET
-      inserted_min_completed_at = stats.min_completed_at,
-      inserted_max_completed_at = stats.max_completed_at,
-      inserted_min_delivery_failed_at = stats.min_delivery_failed_at,
-      inserted_max_delivery_failed_at = stats.max_delivery_failed_at,
-      inserted_min_event_at = stats.min_event_at,
-      inserted_max_event_at = stats.max_event_at,
-      updated_at = NOW()
-    FROM stats
-    WHERE night_delivery_import_logs.import_session_id = $1
-    `,
-        [options.importSessionId, options.kubun]
-    );
-}
-
-async function updateImportLogChunk(client, options) {
-    await client.query(
-        `
-    UPDATE night_delivery_import_logs
-    SET
-      processed_rows = processed_rows + $2,
-      inserted_total_rows = inserted_total_rows + $3,
-      skipped_total_rows = skipped_total_rows + $4,
-      chunks_completed = GREATEST(chunks_completed, $5),
-      status = CASE WHEN $6 THEN 'completed' ELSE status END,
-      finished_at = CASE WHEN $6 THEN NOW() ELSE finished_at END,
-      elapsed_ms = CASE WHEN $6 THEN $7 ELSE elapsed_ms END,
-      updated_at = NOW()
-    WHERE import_session_id = $1
-    `,
+        UPDATE night_delivery_import_logs
+        SET
+          completed_total = $2,
+          failed_total = $3,
+          stats_json = $4::jsonb,
+          company_stats = $5::jsonb,
+          driver_stats = $6::jsonb,
+          processed_rows = processed_rows + $7,
+          inserted_total_rows = inserted_total_rows + $8,
+          skipped_total_rows = skipped_total_rows + $9,
+          chunks_completed = GREATEST(chunks_completed, $10),
+          status = CASE WHEN $11 THEN 'completed' ELSE status END,
+          finished_at = CASE WHEN $11 THEN NOW() ELSE finished_at END,
+          elapsed_ms = CASE WHEN $11 THEN $12 ELSE elapsed_ms END,
+          updated_at = NOW()
+        WHERE import_session_id = $1
+        `,
         [
             options.importSessionId,
-            Number(options.processedCount || 0),
-            Number(options.insertedCount || 0),
-            Number(options.skippedCount || 0),
+            Number((stats.total && stats.total.completed) || 0),
+            Number((stats.total && stats.total.failed) || 0),
+            JSON.stringify(stats),
+            JSON.stringify(stats.companies || []),
+            JSON.stringify(stats.drivers || []),
+            Number(options.chunkProcessedCount || 0),
+            Number(options.chunkInsertedCount || 0),
+            Number(options.chunkSkippedCount || 0),
             Number(options.chunkIndex || 1),
             Boolean(options.isLastChunk),
             Number(options.elapsedMs || 0)
@@ -678,17 +490,12 @@ async function insertNightRows(rows, options) {
         throw new Error("importSessionId がありません");
     }
 
-    let processedCount = 0;
-    let insertedCount = 0;
-    let skippedCount = 0;
-
-    const sourceRanges = getSourceDateRanges(rows);
-
     try {
         await client.query("BEGIN");
 
         await upsertImportLogStart(client, {
             importSessionId,
+            importedAt,
             fileName: options.fileName,
             kubun: KUBUN,
             sourceTotalRows: options.sourceTotalRows,
@@ -696,103 +503,23 @@ async function insertNightRows(rows, options) {
             operatorEmail: options.operatorEmail
         });
 
-        await mergeImportLogSourceRanges(client, {
+        const existingStats = await getExistingNightStats(client, importSessionId);
+
+        const chunkStats = buildNightStatsFromRows(rows, {
             importSessionId,
-            ...sourceRanges
+            importedAt,
+            operatorEmail: options.operatorEmail
         });
 
-        const seenInChunk = new Set();
-        const candidates = [];
+        const mergedStats = mergeNightStats(existingStats, chunkStats);
 
-        for (const row of rows) {
-            if (!hasData(row)) {
-                skippedCount++;
-                continue;
-            }
-
-            processedCount++;
-
-            const hawbNo = text(row[1]);
-
-            if (!hawbNo) {
-                skippedCount++;
-                continue;
-            }
-
-            const eventCandidates = makeNightEventCandidates(row);
-
-            if (eventCandidates.length === 0) {
-                skippedCount++;
-                continue;
-            }
-
-            eventCandidates.forEach(candidate => {
-                const dedupKey = makeNightDedupKey(
-                    row,
-                    candidate.completedAt,
-                    candidate.deliveryFailedAt
-                );
-
-                if (seenInChunk.has(dedupKey)) {
-                    skippedCount++;
-                    return;
-                }
-
-                seenInChunk.add(dedupKey);
-                candidates.push(candidate);
-            });
-        }
-
-        if (candidates.length > 0) {
-            const columnCount = COPY_COLUMNS.length;
-            const values = [];
-
-            const placeholders = candidates.map((candidate, rowIndex) => {
-                const rowValues = buildNightInsertValues(candidate.row, {
-                    importSessionId,
-                    importedAt,
-                    operatorEmail: options.operatorEmail,
-                    completedAt: candidate.completedAt,
-                    deliveryFailedAt: candidate.deliveryFailedAt,
-                    failureReason: candidate.failureReason
-                });
-
-                values.push(...rowValues);
-
-                const start = rowIndex * columnCount;
-
-                return `(${rowValues.map((_, colIndex) => `$${start + colIndex + 1}`).join(", ")})`;
-            });
-
-            const insertResult = await client.query(
-                `
-        INSERT INTO night_delivery_records (
-          ${COPY_COLUMNS.join(", ")}
-        )
-        VALUES
-          ${placeholders.join(",\n")}
-        ON CONFLICT DO NOTHING
-        RETURNING hawb_no
-        `,
-                values
-            );
-
-            insertedCount = insertResult.rowCount;
-            skippedCount += candidates.length - insertedCount;
-        }
-
-        await refreshImportLogInsertedRanges(client, {
+        await saveNightStatsToLog(client, {
             importSessionId,
-            kubun: KUBUN
-        });
-
-        await updateImportLogChunk(client, {
-            importSessionId,
-            processedCount,
-            insertedCount,
-            skippedCount,
+            stats: mergedStats,
+            chunkProcessedCount: chunkStats.processedCount,
+            chunkInsertedCount: chunkStats.insertedCount,
+            chunkSkippedCount: chunkStats.skippedCount,
             chunkIndex: options.chunkIndex,
-            chunksTotal: options.chunksTotal,
             isLastChunk: options.isLastChunk,
             elapsedMs: options.elapsedMs
         });
@@ -800,9 +527,9 @@ async function insertNightRows(rows, options) {
         await client.query("COMMIT");
 
         return {
-            processedCount,
-            insertedCount,
-            skippedCount,
+            processedCount: chunkStats.processedCount,
+            insertedCount: chunkStats.insertedCount,
+            skippedCount: chunkStats.skippedCount,
             importedAt,
             importSessionId
         };
@@ -826,227 +553,277 @@ async function insertNightRows(rows, options) {
     }
 }
 
-function emptyBucket() {
-    return {
+function createEmptyNightStats(options) {
+    const stats = {
+        importSessionId: options.importSessionId,
+        importedAt: options.importedAt,
+        importDate: formatImportDate(options.importedAt),
+        operatorEmail: options.operatorEmail || "",
+        total: {
+            completed: 0,
+            failed: 0
+        },
+        companies: [],
+        drivers: [],
+        processedCount: 0,
+        insertedCount: 0,
+        skippedCount: 0
+    };
+
+    return stats;
+}
+
+function formatImportDate(value) {
+    const parsed = parseTimestamp(value) || nowTimestampText();
+
+    return parsed.slice(0, 10).replace(/-/g, "/");
+}
+
+function emptyCompanyStats(company) {
+    const item = {
+        company,
         completed: 0,
         failed: 0,
+        buckets: {},
         failureReasons: {}
     };
+
+    TIME_BUCKETS.forEach(label => {
+        item.buckets[label] = 0;
+    });
+
+    return item;
 }
 
-function ensureBucket(map, key) {
-    if (!map[key]) {
-        map[key] = emptyBucket();
+function emptyDriverStats(company, driverName) {
+    const item = {
+        company,
+        driver_name: driverName,
+        total: 0,
+        buckets: {}
+    };
+
+    TIME_BUCKETS.forEach(label => {
+        item.buckets[label] = 0;
+    });
+
+    return item;
+}
+
+function statsArrayToMap(array, keyFn) {
+    const map = new Map();
+
+    if (!Array.isArray(array)) {
+        return map;
     }
 
-    return map[key];
+    array.forEach(item => {
+        map.set(keyFn(item), item);
+    });
+
+    return map;
 }
 
-function addFailureReason(target, reason, count) {
-    if (!reason) {
+function ensureCompanyStats(companyMap, company) {
+    if (!companyMap.has(company)) {
+        companyMap.set(company, emptyCompanyStats(company));
+    }
+
+    return companyMap.get(company);
+}
+
+function ensureDriverStats(driverMap, company, driverName) {
+    const key = company + "|||" + driverName;
+
+    if (!driverMap.has(key)) {
+        driverMap.set(key, emptyDriverStats(company, driverName));
+    }
+
+    return driverMap.get(key);
+}
+
+function addMapCount(target, key, count = 1) {
+    if (!key) {
         return;
     }
 
-    target[reason] = Number(target[reason] || 0) + Number(count || 0);
+    target[key] = Number(target[key] || 0) + Number(count || 0);
 }
 
-async function buildSheetStats() {
+function buildNightStatsFromRows(rows, options) {
+    const stats = createEmptyNightStats(options);
+    const companyMap = new Map();
+    const driverMap = new Map();
+
+    rows.forEach(row => {
+        if (!hasData(row)) {
+            stats.skippedCount++;
+            return;
+        }
+
+        stats.processedCount++;
+
+        const eventCandidates = makeNightEventCandidates(row);
+
+        if (eventCandidates.length === 0) {
+            stats.skippedCount++;
+            return;
+        }
+
+        eventCandidates.forEach(candidate => {
+            const company = normalizeText(row[3]);
+            const driverName = normalizeText(row[10]);
+            const timeBucket = TIME_BUCKETS[candidate.timeIndex];
+
+            const companyItem = ensureCompanyStats(companyMap, company);
+
+            companyItem.buckets[timeBucket] = Number(companyItem.buckets[timeBucket] || 0) + 1;
+
+            if (candidate.eventType === "completed") {
+                stats.total.completed++;
+                companyItem.completed++;
+
+                const driverItem = ensureDriverStats(driverMap, company, driverName);
+
+                driverItem.total++;
+                driverItem.buckets[timeBucket] = Number(driverItem.buckets[timeBucket] || 0) + 1;
+            }
+
+            if (candidate.eventType === "failed") {
+                const failureReason = normalizeText(candidate.failureReason);
+
+                stats.total.failed++;
+                companyItem.failed++;
+                addMapCount(companyItem.failureReasons, failureReason, 1);
+            }
+
+            stats.insertedCount++;
+        });
+    });
+
+    stats.companies = Array.from(companyMap.values());
+    stats.drivers = Array.from(driverMap.values()).sort(sortDriverStats);
+
+    return stats;
+}
+
+function sortDriverStats(a, b) {
+    if (Number(b.total || 0) !== Number(a.total || 0)) {
+        return Number(b.total || 0) - Number(a.total || 0);
+    }
+
+    const companyCompare = String(a.company).localeCompare(String(b.company), "ja");
+
+    if (companyCompare !== 0) {
+        return companyCompare;
+    }
+
+    return String(a.driver_name).localeCompare(String(b.driver_name), "ja");
+}
+
+function mergeNightStats(baseStats, chunkStats) {
+    const merged = baseStats && baseStats.importSessionId
+        ? baseStats
+        : createEmptyNightStats({
+            importSessionId: chunkStats.importSessionId,
+            importedAt: chunkStats.importedAt,
+            operatorEmail: chunkStats.operatorEmail
+        });
+
+    merged.importSessionId = chunkStats.importSessionId || merged.importSessionId;
+    merged.importedAt = chunkStats.importedAt || merged.importedAt;
+    merged.importDate = formatImportDate(merged.importedAt);
+    merged.operatorEmail = chunkStats.operatorEmail || merged.operatorEmail || "";
+
+    if (!merged.total) {
+        merged.total = {
+            completed: 0,
+            failed: 0
+        };
+    }
+
+    merged.total.completed = Number(merged.total.completed || 0) + Number(chunkStats.total.completed || 0);
+    merged.total.failed = Number(merged.total.failed || 0) + Number(chunkStats.total.failed || 0);
+
+    merged.processedCount = Number(merged.processedCount || 0) + Number(chunkStats.processedCount || 0);
+    merged.insertedCount = Number(merged.insertedCount || 0) + Number(chunkStats.insertedCount || 0);
+    merged.skippedCount = Number(merged.skippedCount || 0) + Number(chunkStats.skippedCount || 0);
+
+    const companyMap = statsArrayToMap(merged.companies, item => item.company);
+
+    chunkStats.companies.forEach(company => {
+        const target = ensureCompanyStats(companyMap, company.company);
+
+        target.completed = Number(target.completed || 0) + Number(company.completed || 0);
+        target.failed = Number(target.failed || 0) + Number(company.failed || 0);
+
+        TIME_BUCKETS.forEach(label => {
+            target.buckets[label] = Number(target.buckets[label] || 0) + Number((company.buckets || {})[label] || 0);
+        });
+
+        Object.keys(company.failureReasons || {}).forEach(reason => {
+            addMapCount(target.failureReasons, reason, company.failureReasons[reason]);
+        });
+    });
+
+    const driverMap = statsArrayToMap(
+        merged.drivers,
+        item => item.company + "|||" + item.driver_name
+    );
+
+    chunkStats.drivers.forEach(driver => {
+        const target = ensureDriverStats(driverMap, driver.company, driver.driver_name);
+
+        target.total = Number(target.total || 0) + Number(driver.total || 0);
+
+        TIME_BUCKETS.forEach(label => {
+            target.buckets[label] = Number(target.buckets[label] || 0) + Number((driver.buckets || {})[label] || 0);
+        });
+    });
+
+    merged.companies = Array.from(companyMap.values());
+    merged.drivers = Array.from(driverMap.values()).sort(sortDriverStats);
+
+    return merged;
+}
+
+async function buildSheetStats(importSessionId) {
     const pool = getPool();
     const client = await pool.connect();
 
     try {
-        const eventResult = await client.query(
+        const result = await client.query(
             `
-      WITH events AS (
-        SELECT
-          COALESCE(NULLIF(delivery_company, ''), '未設定') AS company,
-          COALESCE(NULLIF(driver_name, ''), '未設定') AS driver_name,
-          COALESCE(NULLIF(failure_reason, ''), '未設定') AS failure_reason,
-          completed_at AS event_at,
-          'completed' AS event_type,
-          CASE EXTRACT(HOUR FROM completed_at)::INT
-            WHEN 22 THEN '22時台'
-            WHEN 23 THEN '23時台'
-            WHEN 0 THEN '0時台'
-            WHEN 1 THEN '1時台'
-            WHEN 2 THEN '2時台'
-            WHEN 3 THEN '3時台'
-            WHEN 4 THEN '4時台'
-            WHEN 5 THEN '5時台'
-            WHEN 6 THEN '6時台'
-            WHEN 7 THEN '7時台'
-          END AS time_bucket
-        FROM night_delivery_records
-        WHERE kubun = $1
-          AND completed_at IS NOT NULL
-          AND EXTRACT(HOUR FROM completed_at)::INT IN (22,23,0,1,2,3,4,5,6,7)
-
-        UNION ALL
-
-        SELECT
-          COALESCE(NULLIF(delivery_company, ''), '未設定') AS company,
-          COALESCE(NULLIF(driver_name, ''), '未設定') AS driver_name,
-          COALESCE(NULLIF(failure_reason, ''), '未設定') AS failure_reason,
-          delivery_failed_at AS event_at,
-          'failed' AS event_type,
-          CASE EXTRACT(HOUR FROM delivery_failed_at)::INT
-            WHEN 22 THEN '22時台'
-            WHEN 23 THEN '23時台'
-            WHEN 0 THEN '0時台'
-            WHEN 1 THEN '1時台'
-            WHEN 2 THEN '2時台'
-            WHEN 3 THEN '3時台'
-            WHEN 4 THEN '4時台'
-            WHEN 5 THEN '5時台'
-            WHEN 6 THEN '6時台'
-            WHEN 7 THEN '7時台'
-          END AS time_bucket
-        FROM night_delivery_records
-        WHERE kubun = $1
-          AND delivery_failed_at IS NOT NULL
-          AND EXTRACT(HOUR FROM delivery_failed_at)::INT IN (22,23,0,1,2,3,4,5,6,7)
-      )
-      SELECT
-        company,
-        driver_name,
-        failure_reason,
-        event_type,
-        time_bucket,
-        COUNT(*)::BIGINT AS count
-      FROM events
-      WHERE time_bucket IS NOT NULL
-      GROUP BY
-        company,
-        driver_name,
-        failure_reason,
-        event_type,
-        time_bucket
-      `,
-            [KUBUN]
+            SELECT
+              stats_json,
+              imported_at,
+              operator_ip
+            FROM night_delivery_import_logs
+            WHERE import_session_id = $1
+              AND kubun = $2
+            `,
+            [importSessionId, KUBUN]
         );
 
-        const failureReasonSet = new Set();
-        const companyMap = new Map();
-        const driverMap = new Map();
+        if (result.rows.length === 0) {
+            throw new Error("該当する深夜配送の取込履歴が見つかりません。");
+        }
 
-        const total = {
-            completed: 0,
-            failed: 0,
-            failureReasons: {},
-            buckets: {}
-        };
+        const stats = result.rows[0].stats_json || {};
 
-        TIME_BUCKETS.forEach(label => {
-            total.buckets[label] = emptyBucket();
-        });
+        stats.importedAt = stats.importedAt || formatDateTime(result.rows[0].imported_at);
+        stats.importDate = stats.importDate || formatImportDate(stats.importedAt);
+        stats.operatorEmail = stats.operatorEmail || result.rows[0].operator_ip || "";
 
-        eventResult.rows.forEach(row => {
-            const company = normalizeText(row.company);
-            const driverName = normalizeText(row.driver_name);
-            const failureReason = normalizeText(row.failure_reason);
-            const eventType = row.event_type;
-            const timeBucket = row.time_bucket;
-            const count = Number(row.count || 0);
+        stats.companies = Array.isArray(stats.companies)
+            ? stats.companies
+            : [];
 
-            const totalBucket = ensureBucket(total.buckets, timeBucket);
+        stats.drivers = Array.isArray(stats.drivers)
+            ? stats.drivers
+            : [];
 
-            if (eventType === "completed") {
-                total.completed += count;
-                totalBucket.completed += count;
-
-                const driverKey = `${company}|||${driverName}`;
-
-                if (!driverMap.has(driverKey)) {
-                    const driverItem = {
-                        company,
-                        driver_name: driverName,
-                        total: 0,
-                        buckets: {}
-                    };
-
-                    TIME_BUCKETS.forEach(label => {
-                        driverItem.buckets[label] = 0;
-                    });
-
-                    driverMap.set(driverKey, driverItem);
-                }
-
-                const driverItem = driverMap.get(driverKey);
-
-                driverItem.total += count;
-                driverItem.buckets[timeBucket] = Number(driverItem.buckets[timeBucket] || 0) + count;
-            }
-
-            if (eventType === "failed") {
-                total.failed += count;
-                totalBucket.failed += count;
-                failureReasonSet.add(failureReason);
-                addFailureReason(total.failureReasons, failureReason, count);
-                addFailureReason(totalBucket.failureReasons, failureReason, count);
-            }
-
-            if (!companyMap.has(company)) {
-                const companyItem = {
-                    company,
-                    completed: 0,
-                    failed: 0,
-                    failureReasons: {},
-                    buckets: {}
-                };
-
-                TIME_BUCKETS.forEach(label => {
-                    companyItem.buckets[label] = emptyBucket();
-                });
-
-                companyMap.set(company, companyItem);
-            }
-
-            const companyItem = companyMap.get(company);
-            const companyBucket = ensureBucket(companyItem.buckets, timeBucket);
-
-            if (eventType === "completed") {
-                companyItem.completed += count;
-                companyBucket.completed += count;
-            }
-
-            if (eventType === "failed") {
-                companyItem.failed += count;
-                companyBucket.failed += count;
-                addFailureReason(companyItem.failureReasons, failureReason, count);
-                addFailureReason(companyBucket.failureReasons, failureReason, count);
-            }
-
-        });
-
-        const failureReasons = Array.from(failureReasonSet).sort((a, b) => a.localeCompare(b, "ja"));
-
-        const companies = Array.from(companyMap.values()).map(company => {
-            return {
-                ...company,
-                total: Number(company.completed || 0) + Number(company.failed || 0)
-            };
-        });
-
-        const drivers = Array.from(driverMap.values()).sort((a, b) => {
-            if (b.total !== a.total) {
-                return b.total - a.total;
-            }
-
-            const companyCompare = a.company.localeCompare(b.company, "ja");
-
-            if (companyCompare !== 0) {
-                return companyCompare;
-            }
-
-            return a.driver_name.localeCompare(b.driver_name, "ja");
-        });
-
-        return {
-            failureReasons,
-            total,
-            companies,
-            drivers
-        };
+        return stats;
     } finally {
         client.release();
     }
@@ -1143,7 +920,20 @@ export async function GET(req) {
             );
         }
 
-        const stats = await buildSheetStats();
+        const { searchParams } = new URL(req.url);
+        const importSessionId = text(searchParams.get("importSessionId"));
+
+        if (!importSessionId) {
+            return NextResponse.json(
+                {
+                    success: false,
+                    error: "importSessionId がありません"
+                },
+                { status: 400 }
+            );
+        }
+
+        const stats = await buildSheetStats(importSessionId);
 
         return NextResponse.json({
             success: true,
