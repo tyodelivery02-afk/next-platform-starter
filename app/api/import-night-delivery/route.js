@@ -684,56 +684,62 @@ function buildNightStatsFromRows(rows, options) {
     const companyMap = new Map();
     const driverMap = new Map();
 
-    rows.forEach(row => {
+    for (const row of rows) {
         if (!hasData(row)) {
             stats.skippedCount++;
-            return;
+            continue;
         }
 
         stats.processedCount++;
 
-        const eventCandidates = makeNightEventCandidates(row);
+        const idxP = timeIndexFromValue(row[15]); // P列 completed_at
+        const idxR = timeIndexFromValue(row[17]); // R列 delivery_failed_at
 
-        if (eventCandidates.length === 0) {
+        if (idxP < 0 && idxR < 0) {
             stats.skippedCount++;
-            return;
+            continue;
         }
 
-        eventCandidates.forEach(candidate => {
-            const company = normalizeText(row[3]);
-            const driverName = normalizeText(row[10]);
-            const timeBucket = TIME_BUCKETS[candidate.timeIndex];
+        const company = normalizeText(row[3]);
+        const companyItem = ensureCompanyStats(companyMap, company);
 
-            const companyItem = ensureCompanyStats(companyMap, company);
+        if (idxP >= 0) {
+            const timeBucket = TIME_BUCKETS[idxP];
 
             companyItem.buckets[timeBucket] = Number(companyItem.buckets[timeBucket] || 0) + 1;
 
-            if (candidate.eventType === "completed") {
-                stats.total.completed++;
-                companyItem.completed++;
+            stats.total.completed++;
+            companyItem.completed++;
 
-                const driverItem = ensureDriverStats(driverMap, company, driverName);
+            const driverName = normalizeText(row[10]);
+            const driverItem = ensureDriverStats(driverMap, company, driverName);
 
-                driverItem.total++;
-                driverItem.buckets[timeBucket] = Number(driverItem.buckets[timeBucket] || 0) + 1;
-            }
+            driverItem.total++;
+            driverItem.buckets[timeBucket] = Number(driverItem.buckets[timeBucket] || 0) + 1;
 
-            if (candidate.eventType === "failed") {
-                const failureReason = normalizeFailureReason(candidate.failureReason);
-
-                stats.total.failed++;
-                companyItem.failed++;
-
-                if (failureReason) {
-                    addMapCount(companyItem.failureReasons, failureReason, 1);
-
-                    const reasonBuckets = ensureFailureReasonTimeBuckets(companyItem, failureReason);
-                    reasonBuckets[timeBucket] = Number(reasonBuckets[timeBucket] || 0) + 1;
-                }
-            }
             stats.insertedCount++;
-        });
-    });
+        }
+
+        if (idxR >= 0) {
+            const timeBucket = TIME_BUCKETS[idxR];
+
+            companyItem.buckets[timeBucket] = Number(companyItem.buckets[timeBucket] || 0) + 1;
+
+            stats.total.failed++;
+            companyItem.failed++;
+
+            const failureReason = normalizeFailureReason(row[22]);
+
+            if (failureReason) {
+                addMapCount(companyItem.failureReasons, failureReason, 1);
+
+                const reasonBuckets = ensureFailureReasonTimeBuckets(companyItem, failureReason);
+                reasonBuckets[timeBucket] = Number(reasonBuckets[timeBucket] || 0) + 1;
+            }
+
+            stats.insertedCount++;
+        }
+    }
 
     stats.companies = Array.from(companyMap.values());
     stats.drivers = Array.from(driverMap.values()).sort(sortDriverStats);

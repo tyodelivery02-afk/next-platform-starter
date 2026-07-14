@@ -324,10 +324,12 @@ async function copyInsertRows(rows, options) {
 
         await pipeline(source, copyStream);
 
-        await refreshImportLogDateRanges_(client, {
-            importSessionId,
-            kubun: KUBUN
-        });
+        if (options.isLastChunk) {
+            await refreshImportLogDateRanges_(client, {
+                importSessionId,
+                kubun: KUBUN
+            });
+        }
 
         await updateImportLogChunk_(client, {
             importSessionId,
