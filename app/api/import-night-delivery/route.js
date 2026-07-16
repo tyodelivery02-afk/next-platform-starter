@@ -24,33 +24,65 @@ const TIME_BUCKETS = [
 
 
 function getConnectionString() {
-    const connectionString =
+    let connectionString =
         process.env.NETLIFY_DATABASE_URL ||
         process.env.DATABASE_URL ||
         process.env.POSTGRES_URL;
 
     if (!connectionString) {
-        throw new Error("DATABASE_URL / NETLIFY_DATABASE_URL / POSTGRES_URL が設定されていません");
+        throw new Error(
+            "DATABASE_URL / NETLIFY_DATABASE_URL / POSTGRES_URL が設定されていません"
+        );
     }
 
-    return connectionString;
+    const isLocal =
+        connectionString.includes("localhost") ||
+        connectionString.includes("127.0.0.1");
+
+    /*
+     * ローカル環境では接続文字列を変更しません。
+     */
+    if (isLocal) {
+        return connectionString;
+    }
+
+    /*
+     * pg-connection-stringの将来バージョンでも
+     * 現在と同じ安全なSSL検証を維持するため、
+     * sslmodeをverify-fullに明示します。
+     */
+    const connectionUrl = new URL(connectionString);
+
+    const currentSslMode =
+        connectionUrl.searchParams.get("sslmode");
+
+    if (
+        !currentSslMode ||
+        currentSslMode === "prefer" ||
+        currentSslMode === "require" ||
+        currentSslMode === "verify-ca"
+    ) {
+        connectionUrl.searchParams.set(
+            "sslmode",
+            "verify-full"
+        );
+    }
+
+    return connectionUrl.toString();
 }
 
 function getPool() {
     if (!globalThis.__nightDeliveryPgPool) {
-        const connectionString = getConnectionString();
+        const connectionString =
+            getConnectionString();
 
-        const isLocal =
-            connectionString.includes("localhost") ||
-            connectionString.includes("127.0.0.1");
-
-        globalThis.__nightDeliveryPgPool = new Pool({
-            connectionString,
-            max: 1,
-            idleTimeoutMillis: 30000,
-            connectionTimeoutMillis: 10000,
-            ssl: isLocal ? false : { rejectUnauthorized: false }
-        });
+        globalThis.__nightDeliveryPgPool =
+            new Pool({
+                connectionString,
+                max: 1,
+                idleTimeoutMillis: 30000,
+                connectionTimeoutMillis: 10000
+            });
     }
 
     return globalThis.__nightDeliveryPgPool;
