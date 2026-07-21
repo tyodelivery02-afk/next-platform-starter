@@ -601,6 +601,7 @@ function createEmptyNightStats(options) {
             completed: 0,
             failed: 0
         },
+        sourceDates: [],
         companies: [],
         drivers: [],
         processedCount: 0,
@@ -615,6 +616,36 @@ function formatImportDate(value) {
     const parsed = parseTimestamp(value) || nowTimestampText();
 
     return parsed.slice(0, 10).replace(/-/g, "/");
+}
+
+/**
+ * 元データのN列から日付部分のみを取得します。
+ *
+ * 戻り値：
+ * yyyy/MM/dd
+ *
+ * 日付として解析できない場合は空文字を返します。
+ */
+function formatSourceDate(value) {
+    const parsed = parseTimestamp(value);
+
+    if (!parsed) {
+        return "";
+    }
+
+    return parsed
+        .slice(0, 10)
+        .replace(/-/g, "/");
+}
+
+/**
+ * 会社名と元データ日付を組み合わせた集計キーを作成します。
+ */
+function buildCompanyDateKey(company, sourceDate) {
+    return JSON.stringify([
+        String(company || ""),
+        String(sourceDate || "")
+    ]);
 }
 
 function emptyTimeBucketCounts() {
@@ -639,9 +670,10 @@ function ensureFailureReasonTimeBuckets(companyItem, failureReason) {
     return companyItem.failureReasonBuckets[failureReason];
 }
 
-function emptyCompanyStats(company) {
+function emptyCompanyStats(company, sourceDate) {
     const item = {
         company,
+        sourceDate,
         allCount: 0,
         completed: 0,
         failed: 0,
@@ -686,12 +718,27 @@ function statsArrayToMap(array, keyFn) {
     return map;
 }
 
-function ensureCompanyStats(companyMap, company) {
-    if (!companyMap.has(company)) {
-        companyMap.set(company, emptyCompanyStats(company));
+function ensureCompanyStats(
+    companyMap,
+    company,
+    sourceDate
+) {
+    const key = buildCompanyDateKey(
+        company,
+        sourceDate
+    );
+
+    if (!companyMap.has(key)) {
+        companyMap.set(
+            key,
+            emptyCompanyStats(
+                company,
+                sourceDate
+            )
+        );
     }
 
-    return companyMap.get(company);
+    return companyMap.get(key);
 }
 
 function ensureDriverStats(driverMap, company, driverName) {
@@ -716,6 +763,7 @@ function buildNightStatsFromRows(rows, options) {
     const stats = createEmptyNightStats(options);
     const companyMap = new Map();
     const driverMap = new Map();
+    const sourceDateSet = new Set();
 
     for (const row of rows) {
         /*
@@ -729,32 +777,49 @@ function buildNightStatsFromRows(rows, options) {
         stats.processedCount++;
 
         /*
-         * 全時間帯総件数は、深夜時間帯かどうかに関係なく、
-         * 有効な元データ1行を1件として会社別に集計します。
+         * N列の日時からyyyy/MM/dd形式の日付を取得します。
+         *
+         * 配列の13番目は元データのN列です。
          */
-        const company = normalizeText(row[3]);
-        const companyItem = ensureCompanyStats(
-            companyMap,
-            company
-        );
+        const sourceDate =
+            formatSourceDate(row[13]);
 
+        sourceDateSet.add(sourceDate);
+
+        const company =
+            normalizeText(row[3]);
+
+        /*
+         * 会社名とN列日付の組み合わせごとに
+         * 別の会社集計データを作成します。
+         */
+        const companyItem =
+            ensureCompanyStats(
+                companyMap,
+                company,
+                sourceDate
+            );
+
+        /*
+         * 全時間帯総件数は、深夜時間帯かどうかに関係なく、
+         * 有効な元データ1行を1件として集計します。
+         */
         companyItem.allCount =
             Number(companyItem.allCount || 0) + 1;
 
-        const idxP = timeIndexFromValue(
-            row[15]
-        ); // P列 completed_at
+        const idxP =
+            timeIndexFromValue(
+                row[15]
+            ); // P列 completed_at
 
-        const idxR = timeIndexFromValue(
-            row[17]
-        ); // R列 delivery_failed_at
+        const idxR =
+            timeIndexFromValue(
+                row[17]
+            ); // R列 delivery_failed_at
 
         /*
          * P列とR列の両方が深夜時間帯外の場合でも、
-         * allCountにはすでに1件加算されています。
-         *
-         * 既存の深夜配送集計には加算せず、
-         * skippedCountの既存仕様も維持します。
+         * 全時間帯総件数には加算済みです。
          */
         if (idxP < 0 && idxR < 0) {
             stats.skippedCount++;
@@ -773,6 +838,12 @@ function buildNightStatsFromRows(rows, options) {
             stats.total.completed++;
             companyItem.completed++;
 
+            /*
+             * 配達員集計は従来どおり、
+             * 会社名と配達員名で集計します。
+             *
+             * N列日付では分割しません。
+             */
             const driverName =
                 normalizeText(row[10]);
 
@@ -831,6 +902,16 @@ function buildNightStatsFromRows(rows, options) {
         }
     }
 
+    /*
+     * 元ファイル内で最初に出現した日付順を保持します。
+     * 日付の並べ替えは行いません。
+     */
+    stats.sourceDates =
+        Array.from(sourceDateSet);
+
+    stats.companies =
+        Array.from(companySet);
+
     stats.companies =
         Array.from(companyMap.values());
 
@@ -856,18 +937,35 @@ function sortDriverStats(a, b) {
 }
 
 function mergeNightStats(baseStats, chunkStats) {
-    const merged = baseStats && baseStats.importSessionId
-        ? baseStats
-        : createEmptyNightStats({
-            importSessionId: chunkStats.importSessionId,
-            importedAt: chunkStats.importedAt,
-            operatorEmail: chunkStats.operatorEmail
-        });
+    const merged =
+        baseStats && baseStats.importSessionId
+            ? baseStats
+            : createEmptyNightStats({
+                importSessionId:
+                    chunkStats.importSessionId,
+                importedAt:
+                    chunkStats.importedAt,
+                operatorEmail:
+                    chunkStats.operatorEmail
+            });
 
-    merged.importSessionId = chunkStats.importSessionId || merged.importSessionId;
-    merged.importedAt = chunkStats.importedAt || merged.importedAt;
-    merged.importDate = formatImportDate(merged.importedAt);
-    merged.operatorEmail = chunkStats.operatorEmail || merged.operatorEmail || "";
+    merged.importSessionId =
+        chunkStats.importSessionId ||
+        merged.importSessionId;
+
+    merged.importedAt =
+        chunkStats.importedAt ||
+        merged.importedAt;
+
+    merged.importDate =
+        formatImportDate(
+            merged.importedAt
+        );
+
+    merged.operatorEmail =
+        chunkStats.operatorEmail ||
+        merged.operatorEmail ||
+        "";
 
     if (!merged.total) {
         merged.total = {
@@ -876,65 +974,187 @@ function mergeNightStats(baseStats, chunkStats) {
         };
     }
 
-    merged.total.completed = Number(merged.total.completed || 0) + Number(chunkStats.total.completed || 0);
-    merged.total.failed = Number(merged.total.failed || 0) + Number(chunkStats.total.failed || 0);
+    merged.total.completed =
+        Number(merged.total.completed || 0) +
+        Number(chunkStats.total.completed || 0);
 
-    merged.processedCount = Number(merged.processedCount || 0) + Number(chunkStats.processedCount || 0);
-    merged.insertedCount = Number(merged.insertedCount || 0) + Number(chunkStats.insertedCount || 0);
-    merged.skippedCount = Number(merged.skippedCount || 0) + Number(chunkStats.skippedCount || 0);
+    merged.total.failed =
+        Number(merged.total.failed || 0) +
+        Number(chunkStats.total.failed || 0);
 
-    const companyMap = statsArrayToMap(merged.companies, item => item.company);
+    merged.processedCount =
+        Number(merged.processedCount || 0) +
+        Number(chunkStats.processedCount || 0);
 
-    chunkStats.companies.forEach(company => {
-        const target = ensureCompanyStats(companyMap, company.company);
+    merged.insertedCount =
+        Number(merged.insertedCount || 0) +
+        Number(chunkStats.insertedCount || 0);
+
+    merged.skippedCount =
+        Number(merged.skippedCount || 0) +
+        Number(chunkStats.skippedCount || 0);
+
+    /*
+     * 複数チャンクのN列日付を、
+     * 最初に出現した順序のまま統合します。
+     */
+    const sourceDateSet = new Set(
+        Array.isArray(merged.sourceDates)
+            ? merged.sourceDates
+            : []
+    );
+
+    const chunkSourceDates =
+        Array.isArray(chunkStats.sourceDates)
+            ? chunkStats.sourceDates
+            : [];
+
+    chunkSourceDates.forEach(sourceDate => {
+        sourceDateSet.add(
+            String(sourceDate || "")
+        );
+    });
+
+    merged.sourceDates =
+        Array.from(sourceDateSet);
+
+    /*
+     * 会社名とN列日付の組み合わせをキーにします。
+     */
+    const companyMap =
+        statsArrayToMap(
+            merged.companies,
+            item => buildCompanyDateKey(
+                item.company,
+                item.sourceDate
+            )
+        );
+
+    const chunkCompanies =
+        Array.isArray(chunkStats.companies)
+            ? chunkStats.companies
+            : [];
+
+    chunkCompanies.forEach(company => {
+        const target =
+            ensureCompanyStats(
+                companyMap,
+                company.company,
+                company.sourceDate
+            );
 
         if (!target.failureReasonBuckets) {
             target.failureReasonBuckets = {};
         }
 
-        target.allCount = Number(target.allCount || 0) + Number(company.allCount || 0);
-        target.completed = Number(target.completed || 0) + Number(company.completed || 0);
-        target.failed = Number(target.failed || 0) + Number(company.failed || 0);
+        target.allCount =
+            Number(target.allCount || 0) +
+            Number(company.allCount || 0);
+
+        target.completed =
+            Number(target.completed || 0) +
+            Number(company.completed || 0);
+
+        target.failed =
+            Number(target.failed || 0) +
+            Number(company.failed || 0);
 
         TIME_BUCKETS.forEach(label => {
             target.buckets[label] =
-                Number(target.buckets[label] || 0) +
-                Number((company.buckets || {})[label] || 0);
+                Number(
+                    target.buckets[label] || 0
+                ) +
+                Number(
+                    (company.buckets || {})[label] || 0
+                );
         });
 
-        Object.keys(company.failureReasons || {}).forEach(reason => {
-            addMapCount(target.failureReasons, reason, company.failureReasons[reason]);
-        });
-
-        Object.keys(company.failureReasonBuckets || {}).forEach(reason => {
-            const targetReasonBuckets = ensureFailureReasonTimeBuckets(target, reason);
-            const sourceReasonBuckets = company.failureReasonBuckets[reason] || {};
-
-            TIME_BUCKETS.forEach(label => {
-                targetReasonBuckets[label] =
-                    Number(targetReasonBuckets[label] || 0) +
-                    Number(sourceReasonBuckets[label] || 0);
+        Object
+            .keys(company.failureReasons || {})
+            .forEach(reason => {
+                addMapCount(
+                    target.failureReasons,
+                    reason,
+                    company.failureReasons[reason]
+                );
             });
-        });
+
+        Object
+            .keys(
+                company.failureReasonBuckets || {}
+            )
+            .forEach(reason => {
+                const targetReasonBuckets =
+                    ensureFailureReasonTimeBuckets(
+                        target,
+                        reason
+                    );
+
+                const sourceReasonBuckets =
+                    company
+                        .failureReasonBuckets[reason] ||
+                    {};
+
+                TIME_BUCKETS.forEach(label => {
+                    targetReasonBuckets[label] =
+                        Number(
+                            targetReasonBuckets[label] ||
+                            0
+                        ) +
+                        Number(
+                            sourceReasonBuckets[label] ||
+                            0
+                        );
+                });
+            });
     });
 
-    const driverMap = statsArrayToMap(
-        merged.drivers,
-        item => item.company + "|||" + item.driver_name
-    );
+    /*
+     * 配達員集計のキーと集計方法は変更しません。
+     */
+    const driverMap =
+        statsArrayToMap(
+            merged.drivers,
+            item =>
+                item.company +
+                "|||" +
+                item.driver_name
+        );
 
-    chunkStats.drivers.forEach(driver => {
-        const target = ensureDriverStats(driverMap, driver.company, driver.driver_name);
+    const chunkDrivers =
+        Array.isArray(chunkStats.drivers)
+            ? chunkStats.drivers
+            : [];
 
-        target.total = Number(target.total || 0) + Number(driver.total || 0);
+    chunkDrivers.forEach(driver => {
+        const target =
+            ensureDriverStats(
+                driverMap,
+                driver.company,
+                driver.driver_name
+            );
+
+        target.total =
+            Number(target.total || 0) +
+            Number(driver.total || 0);
 
         TIME_BUCKETS.forEach(label => {
-            target.buckets[label] = Number(target.buckets[label] || 0) + Number((driver.buckets || {})[label] || 0);
+            target.buckets[label] =
+                Number(
+                    target.buckets[label] || 0
+                ) +
+                Number(
+                    (driver.buckets || {})[label] || 0
+                );
         });
     });
 
-    merged.companies = Array.from(companyMap.values());
-    merged.drivers = Array.from(driverMap.values()).sort(sortDriverStats);
+    merged.companies =
+        Array.from(companyMap.values());
+
+    merged.drivers =
+        Array.from(driverMap.values())
+            .sort(sortDriverStats);
 
     return merged;
 }
@@ -967,13 +1187,33 @@ async function buildSheetStats(importSessionId) {
         stats.importDate = stats.importDate || formatImportDate(stats.importedAt);
         stats.operatorEmail = stats.operatorEmail || result.rows[0].operator_ip || "";
 
-        stats.companies = Array.isArray(stats.companies)
-            ? stats.companies
-            : [];
+        stats.companies =
+            Array.isArray(stats.companies)
+                ? stats.companies
+                : [];
 
-        stats.drivers = Array.isArray(stats.drivers)
-            ? stats.drivers
-            : [];
+        stats.drivers =
+            Array.isArray(stats.drivers)
+                ? stats.drivers
+                : [];
+
+        stats.sourceDates =
+            Array.isArray(stats.sourceDates)
+                ? stats.sourceDates
+                : [];
+
+        if (stats.sourceDates.length === 0) {
+            const sourceDateSet = new Set();
+
+            stats.companies.forEach(company => {
+                sourceDateSet.add(
+                    String(company.sourceDate || "")
+                );
+            });
+
+            stats.sourceDates =
+                Array.from(sourceDateSet);
+        }
 
         return stats;
     } finally {
