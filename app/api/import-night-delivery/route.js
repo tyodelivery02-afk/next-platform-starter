@@ -910,9 +910,6 @@ function buildNightStatsFromRows(rows, options) {
         Array.from(sourceDateSet);
 
     stats.companies =
-        Array.from(companySet);
-
-    stats.companies =
         Array.from(companyMap.values());
 
     stats.drivers =
