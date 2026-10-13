@@ -19,7 +19,7 @@ export default function AuthWrapper({ children }) {
     }
 
     // 后端验证 token
-    fetch(`/api/loginverify?token=${token}`)
+    fetch('/api/loginverify', { cache: 'no-store' })
       .then((res) => res.json())
       .then((data) => {
         setIsLoggedIn(data.loggedIn);

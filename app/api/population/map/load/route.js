@@ -1,68 +1,35 @@
-import { NextResponse } from "next/server";
-import { neon } from "@netlify/neon";
+import { NextResponse } from 'next/server';
+import { neon } from '@netlify/neon';
+import { requirePopulationSession } from '../../../../../lib/server-session';
 
 const sql = neon();
 
 export async function GET(req) {
   try {
-    const { searchParams } = new URL(req.url);
-    const versionId = searchParams.get('versionId') || '1'; // 默认加载工作版本
-
-    // 获取颜色配置
-    const colors = await sql`
-      SELECT color_id, color_name FROM map_color_config
-      WHERE version_id = ${versionId}
+    const denied = await requirePopulationSession(req);
+    if (denied) return denied;
+    const requested = new URL(req.url).searchParams.get('versionId');
+    const versionId = Number(requested || 1);
+    if (!Number.isSafeInteger(versionId) || versionId < 1) return NextResponse.json({ success: false, error: 'Invalid version' }, { status: 400 });
+    // All records come from the same database snapshot and one network request.
+    const rows = await sql`
+      SELECT
+        (SELECT version_name FROM map_versions WHERE version_id = ${versionId}) AS version_name,
+        EXISTS(SELECT 1 FROM map_versions WHERE version_id = ${versionId}) AS exists,
+        COALESCE((SELECT jsonb_object_agg(color_id, color_name) FROM map_color_config WHERE version_id = ${versionId}), '{}'::jsonb) AS color_names,
+        COALESCE((SELECT jsonb_object_agg(area_code, color_id) FROM map_edit_data WHERE version_id = ${versionId}), '{}'::jsonb) AS area_colors,
+        COALESCE((SELECT value FROM map_metadata WHERE version_id = ${versionId} AND key = 'config'), '{}'::jsonb) AS metadata
     `;
-
-    const colorNames = {};
-    colors.forEach(row => {
-      colorNames[row.color_id] = row.color_name;
-    });
-
-    // 获取地区编辑记录
-    const edits = await sql`
-      SELECT area_code, color_id FROM map_edit_data
-      WHERE version_id = ${versionId}
-    `;
-
-    const selectedAreas = [];
-    const areaColors = {};
-    edits.forEach(row => {
-      selectedAreas.push(row.area_code);
-      areaColors[row.area_code] = row.color_id;
-    });
-
-    // 获取元数据
-    const metadataResult = await sql`
-      SELECT value FROM map_metadata 
-      WHERE version_id = ${versionId} AND key = 'config'
-    `;
-
-    let selectedPref = null;
-    let prefMuniMapping = {};
-
-    if (metadataResult.length > 0) {
-      const metadata = metadataResult[0].value;
-      selectedPref = metadata.selectedPref || null;
-      prefMuniMapping = metadata.prefMuniMapping || {};
-    }
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        selectedAreas,
-        areaColors,
-        colorNames,
-        selectedPref,
-        prefMuniMapping
-      }
-    });
-
+    const row = rows[0];
+    if (requested && !row.exists) return NextResponse.json({ success: false, error: 'バージョンが見つかりません' }, { status: 404 });
+    const metadata = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata;
+    return NextResponse.json({ success: true, data: {
+      versionId: row.exists ? versionId : null, versionName: row.version_name || '',
+      selectedAreas: Object.keys(row.area_colors), areaColors: row.area_colors, colorNames: row.color_names,
+      selectedPref: metadata.selectedPref || null, prefMuniMapping: metadata.prefMuniMapping || {},
+    } }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
-    console.error('DB Error:', error);
-    return NextResponse.json(
-      { success: false, error: error.message },
-      { status: 500 }
-    );
+    console.error('Map load failed:', error);
+    return NextResponse.json({ success: false, error: '地図データを読み込めませんでした' }, { status: 500 });
   }
 }

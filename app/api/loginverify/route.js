@@ -1,20 +1,22 @@
 import { NextResponse } from "next/server";
-import { neon } from "@netlify/neon";
 import bcrypt from "bcryptjs";
-
-const sql = neon();
+import { getPasswordHash, isAuthenticated, isSameOrigin } from '../../../lib/server-session';
+import { createSessionToken, SESSION_COOKIE, SESSION_SECONDS } from '../../../lib/session-token.mjs';
 
 export async function POST(request) {
-  const { password } = await request.json();
-  if (!password) return NextResponse.json({ success: false });
-
   try {
-    const result = await sql`SELECT value FROM sys_config WHERE key = 'password'`;
-    const hashedPassword = result[0]?.value;
+    const { password } = await request.json();
+    if (typeof password !== 'string' || !password || password.length > 256) return NextResponse.json({ success: false }, { status: 400 });
+    if (!isSameOrigin(request)) return NextResponse.json({ success: false }, { status: 403 });
+    const hashedPassword = await getPasswordHash();
 
     if (await bcrypt.compare(password, hashedPassword)) {
-      const token = "loggedin";
-      const res = NextResponse.json({ success: true, token });
+      const res = NextResponse.json({ success: true, token: 'authenticated' });
+      res.cookies.set(SESSION_COOKIE, createSessionToken(hashedPassword), {
+        httpOnly: true,
+        secure: request.headers.get('x-forwarded-proto')?.split(',')[0].trim() === 'https' || new URL(request.url).protocol === 'https:',
+        sameSite: 'lax', path: '/', maxAge: SESSION_SECONDS,
+      });
       return res;
     }
 
@@ -27,7 +29,9 @@ export async function POST(request) {
 
 // GET 用于验证 token
 export async function GET(request) {
-  const { searchParams } = new URL(request.url);
-  const token = searchParams.get("token");
-  return NextResponse.json({ loggedIn: token === "loggedin" });
+  try {
+    return NextResponse.json({ loggedIn: await isAuthenticated(request) }, { headers: { 'Cache-Control': 'no-store' } });
+  } catch {
+    return NextResponse.json({ loggedIn: false }, { status: 503 });
+  }
 }

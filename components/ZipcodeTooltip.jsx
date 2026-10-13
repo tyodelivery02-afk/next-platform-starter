@@ -1,12 +1,13 @@
 // components/ZipcodeTooltip.jsx
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { X, Download } from "phosphor-react";
 import ReactECharts from "echarts-for-react";
 import { downloadZipcodeCSV } from "../utils";
+import { fetchPopulationJSON } from "../lib/population-client.mjs";
 
-export default function ZipcodeTooltip({ areaName, areaCode, position, isVisible, onClose, onMouseEnter, onMouseLeave, housingData }) {
+export default function ZipcodeTooltip({ areaName, areaCode, position, isVisible = true, onClose, onMouseEnter, onMouseLeave, housingData, panelMode = false }) {
     const [zipcodes, setZipcodes] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -15,7 +16,7 @@ export default function ZipcodeTooltip({ areaName, areaCode, position, isVisible
     const [adjustedPos, setAdjustedPos] = useState({ left: 0, top: 0 });
     const TOOLTIP_W = 520;
 
-    const updateTooltipPosition = () => {
+    const updateTooltipPosition = useCallback(() => {
         if (!position || !tooltipRef.current) return;
 
         const GAP = 15;
@@ -37,25 +38,25 @@ export default function ZipcodeTooltip({ areaName, areaCode, position, isVisible
         if (top < MARGIN) top = MARGIN;
 
         setAdjustedPos({ left, top });
-    };
+    }, [position]);
 
     useEffect(() => {
-        if (!position || !isVisible) return;
+        if (panelMode || !position || !isVisible) return;
 
+        let frame2;
         const frame1 = requestAnimationFrame(() => {
             updateTooltipPosition();
 
-            const frame2 = requestAnimationFrame(() => {
+            frame2 = requestAnimationFrame(() => {
                 updateTooltipPosition();
             });
-            return () => cancelAnimationFrame(frame2);
         });
 
-        return () => cancelAnimationFrame(frame1);
-    }, [position, isVisible, loading, housingData, searchQuery, zipcodes.length]);
+        return () => { cancelAnimationFrame(frame1); if (frame2) cancelAnimationFrame(frame2); };
+    }, [panelMode, position, isVisible, loading, housingData, searchQuery, zipcodes.length, updateTooltipPosition]);
 
     useEffect(() => {
-        if (!tooltipRef.current || !position || !isVisible) return;
+        if (panelMode || !tooltipRef.current || !position || !isVisible) return;
 
         const observer = new ResizeObserver(() => {
             updateTooltipPosition();
@@ -64,52 +65,25 @@ export default function ZipcodeTooltip({ areaName, areaCode, position, isVisible
         observer.observe(tooltipRef.current);
 
         return () => observer.disconnect();
-    }, [position, isVisible, housingData]);
+    }, [panelMode, position, isVisible, housingData, updateTooltipPosition]);
 
     useEffect(() => {
-        console.log('ZipcodeTooltip - areaName:', areaName);
-        console.log('ZipcodeTooltip - areaCode:', areaCode);
-
+        let cancelled = false;
+        setZipcodes([]);
+        setSearchQuery("");
+        setError(null);
         if (!areaCode) {
-            console.warn('ZipcodeTooltip - Missing areaCode');
             setLoading(false);
             setError('地域情報が不足しています');
             return;
         }
-
-        const fetchZipcodes = async () => {
-            setLoading(true);
-            setError(null);
-            setSearchQuery("");
-
-            try {
-                const url = `/api/zipcode?localGovCode=${encodeURIComponent(areaCode)}`;
-                console.log('ZipcodeTooltip - Fetching URL:', url);
-
-                const response = await fetch(url);
-
-                if (!response.ok) {
-                    throw new Error(`郵便番号の取得に失敗しました (${response.status})`);
-                }
-
-                const data = await response.json();
-                console.log('ZipcodeTooltip - Response data:', data);
-
-                if (data.success) {
-                    setZipcodes(data.zipcodes);
-                } else {
-                    setError(data.error || "郵便番号の取得に失敗しました");
-                }
-            } catch (err) {
-                console.error("郵便番号取得エラー:", err);
-                setError(err.message);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchZipcodes();
-    }, [areaName, areaCode]);
+        setLoading(true);
+        fetchPopulationJSON('/api/zipcode?localGovCode=' + encodeURIComponent(areaCode))
+            .then(data => { if (!cancelled) setZipcodes(data.zipcodes || []); })
+            .catch(error => { if (!cancelled) setError(error.message); })
+            .finally(() => { if (!cancelled) setLoading(false); });
+        return () => { cancelled = true; };
+    }, [areaCode]);
 
     const downloadCSV = () => {
         if (filteredZipcodes.length === 0) return;
@@ -143,13 +117,15 @@ export default function ZipcodeTooltip({ areaName, areaCode, position, isVisible
         );
     });
 
-    if (!position) return null;
+    if (!panelMode && !position) return null;
 
     return (
         <div
             ref={tooltipRef}
-            className="fixed bg-white border-2 border-gray-300 rounded-lg shadow-xl z-50 overflow-hidden"
-            style={{
+            className={panelMode
+                ? "relative flex h-full min-h-0 flex-col bg-white overflow-hidden"
+                : "fixed bg-white border-2 border-gray-300 rounded-lg shadow-xl z-50 overflow-hidden"}
+            style={panelMode ? undefined : {
                 left: adjustedPos.left,
                 top: adjustedPos.top,
                 width: 520,
@@ -164,14 +140,14 @@ export default function ZipcodeTooltip({ areaName, areaCode, position, isVisible
             onMouseLeave={onMouseLeave}
         >
             {/* ── ヘッダー ── */}
-            <div className="flex justify-between items-center px-4 py-3 border-b border-gray-100 bg-white sticky top-0 z-10">
+            <div className="flex shrink-0 justify-between items-center px-4 py-3 border-b border-gray-100 bg-white sticky top-0 z-10">
                 <h3 className="font-bold text-lg text-gray-800 truncate pr-2">{areaName}</h3>
-                <button onClick={onClose} className="x-button flex-shrink-0">
+                <button onClick={onClose} aria-label="郵便番号詳細を閉じる" className="x-button flex-shrink-0">
                     <X size={22} weight="bold" />
                 </button>
             </div>
 
-            <div className="overflow-y-auto" style={{ maxHeight: "calc(90vh - 56px)" }}>
+            <div className={panelMode ? "min-h-0 flex-1 overflow-y-auto" : "overflow-y-auto"} style={panelMode ? undefined : { maxHeight: "calc(90vh - 56px)" }}>
                 <div className="p-3 border-b border-gray-100 bg-sky-50 flex flex-col gap-2">
                     {/* ── 住宅属性 3層ドーナツ ── */}
                     {housingData ? (() => {

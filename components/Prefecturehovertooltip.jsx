@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { fetchPopulationJSON, mapWithConcurrency } from "../lib/population-client.mjs";
 import { downloadZipcodeCSV } from "../utils";
 import { ArrowLeft, X, Download } from "phosphor-react";
 
@@ -118,8 +119,8 @@ export default function PrefectureHoverTooltip({
     );
 
     const selectedCodesInPref = useMemo(
-        () => (stats?.prefSelectedCodes || []).filter((code) => code.startsWith(prefCode || "")),
-        [stats?.prefSelectedCodes, prefCode]
+        () => selectedCodesParam.split(',').filter(code => code && code.startsWith(prefCode || "")),
+        [selectedCodesParam, prefCode]
     );
 
     const updateTooltipPosition = useCallback(() => {
@@ -277,34 +278,12 @@ export default function PrefectureHoverTooltip({
             setHousingLoadedOnce(false);
 
             try {
-                const [prefRes, nationalRes, selectedSettled] = await Promise.all([
-                    fetch(`/api/population/estat?level=housing-pref&prefCode=${prefCode}`, {
-                        signal: controller.signal,
-                    }).then((res) => {
-                        if (!res.ok) throw new Error("pref housing fetch failed");
-                        return res.json();
-                    }),
-                    fetch(`/api/population/estat?level=housing&areaCode=00000`, {
-                        signal: controller.signal,
-                    }).then((res) => {
-                        if (!res.ok) throw new Error("national housing fetch failed");
-                        return res.json();
-                    }),
-                    Promise.allSettled(
-                        selectedCodesInPref.map(async (code) => {
-                            const res = await fetch(
-                                `/api/population/estat?level=housing&areaCode=${code}`,
-                                { signal: controller.signal }
-                            );
-                            if (!res.ok) throw new Error(`housing fetch failed: ${code}`);
-                            return res.json();
-                        })
-                    ),
+                const [prefRes, nationalRes, successfulSelectedList] = await Promise.all([
+                    fetchPopulationJSON('/api/population/estat?level=housing-pref&prefCode=' + prefCode),
+                    fetchPopulationJSON('/api/population/estat?level=housing&areaCode=00000'),
+                    stats?.wholePref ? Promise.resolve([]) : mapWithConcurrency(selectedCodesInPref, 4, code =>
+                        fetchPopulationJSON('/api/population/estat?level=housing&areaCode=' + code)),
                 ]);
-
-                const successfulSelectedList = selectedSettled
-                    .filter((item) => item.status === "fulfilled")
-                    .map((item) => item.value);
 
                 const sumHousingStats = (list) => {
                     const result = {
@@ -337,7 +316,7 @@ export default function PrefectureHoverTooltip({
 
                 if (!cancelled) {
                     setHousingStats({
-                        selected: sumHousingStats(successfulSelectedList),
+                        selected: stats?.wholePref ? prefRes?.housingStats : sumHousingStats(successfulSelectedList),
                         pref: prefRes?.housingStats || null,
                         national: nationalRes?.housingStats || null,
                     });
@@ -361,7 +340,7 @@ export default function PrefectureHoverTooltip({
             cancelled = true;
             controller.abort();
         };
-    }, [prefCode, selectedCodesInPref]);
+    }, [prefCode, selectedCodesInPref, stats?.wholePref]);
 
     useEffect(() => {
         if (!position || !isVisible) return;
@@ -459,7 +438,7 @@ export default function PrefectureHoverTooltip({
 
     const zipRatePref = prefTotalZipcodes > 0 ? selectedZipcodes / prefTotalZipcodes : 0;
     const nEff = zipRatePref > 0 ? (popRatePref / zipRatePref).toFixed(2) : null;
-    const nationalAreaHa = 37797528; // 377,975.28 km² = 37,797,528 ha
+    const nationalAreaHa = stats?.nationalArea || 0;
     const areaChartSelected = selectedArea;
     const areaChartTotal = areaView === 0 ? totalPrefArea : nationalAreaHa;
     const areaRateChart = areaChartTotal > 0 ? areaChartSelected / areaChartTotal : 0;

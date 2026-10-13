@@ -1,7 +1,10 @@
 "use client";
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, useCallback, useMemo } from "react";
+import { colorPalette, buildPrefStats, collapsePrefecture, sumSelectedPopulation } from "../../lib/population-model.mjs";
+import { fetchPopulationJSON, mapWithConcurrency, loadPopulationSnapshot } from "../../lib/population-client.mjs";
 import JapanMap from "components/JapanMap";
 import PrefectureMap from "components/PrefectureMap";
+import ZipcodeTooltip from "components/ZipcodeTooltip";
 import AlertModal from "components/alert";
 import WarningModal from "components/warning";
 import ConfirmModal from "components/confirm";
@@ -28,18 +31,16 @@ import {
 export default function Page() {
   const [selectedAreas, setSelectedAreas] = useState([]);
   const [populationData, setPopulationData] = useState({});
-  const [totalPopulation, setTotalPopulation] = useState(0);
   const [selectedPref, setSelectedPref] = useState(null);
   const [rightPanelPref, setRightPanelPref] = useState(null);
-  const [nationalPopulation, setNationalPopulation] = useState(124885175);
-  const [areaData, setAreaData] = useState({});       // code → km²
+  const [zipcodePanelArea, setZipcodePanelArea] = useState(null);
+  const [nationalPopulation, setNationalPopulation] = useState(0);
+  const [areaData, setAreaData] = useState({});       // code → ha
   const [nationalArea, setNationalArea] = useState(0); // 全国合計面積
   const [housingCache, setHousingCache] = useState({}); // areaCode → housing data
   const [prefMuniMapping, setPrefMuniMapping] = useState({});
   const exportRef = useRef(null);
-  const [mapGeoJSON, setMapGeoJSON] = useState(null);
   const [mapProjectionConfig, setMapProjectionConfig] = useState(null);
-  const currentPrefRef = useRef(null);
   const alertRef = useRef();
   const warningRef = useRef();
   const [latestDbColorNames, setLatestDbColorNames] = useState({});
@@ -63,7 +64,10 @@ export default function Page() {
     color12: "スカイブルー",
     color13: "ターコイズブルー",
   });
-  const [colorStats, setColorStats] = useState({});
+  const loadSequenceRef = useRef(0);
+  const navigationSequenceRef = useRef(0);
+  const editRevisionRef = useRef(0);
+  const versionMutationRef = useRef(false);
 
   // インポート関連状態
   const [showImportModal, setShowImportModal] = useState(false);
@@ -84,21 +88,7 @@ export default function Page() {
   const [currentVersionId, setCurrentVersionId] = useState(null); // 当前编辑的版本ID
   const [currentVersionName, setCurrentVersionName] = useState(""); // 当前版本名称
 
-  const colorPalette = {
-    color1: "#FF5733",
-    color2: "#28C76F",
-    color3: "#FFCC00",
-    color4: "#9B59B6",
-    color5: "#E91E63",
-    color6: "#F39C12",
-    color7: "#34495E",
-    color8: "#E67E22",
-    color9: "#C0392B",
-    color10: "#A3CB38",
-    color11: "#0047AB",
-    color12: "#2b94eb",
-    color13: "#30D5C8",
-  };
+
 
   const getSelectedPrefName = () => {
     if (!selectedPref) return null;
@@ -283,25 +273,23 @@ export default function Page() {
       const newSelectedAreas = [...selectedAreas];
       const newAreaColors = { ...areaColors };
 
-      for (const [prefName, areas] of Object.entries(prefGroups)) {
+      await mapWithConcurrency(Object.entries(prefGroups), 4, async ([prefName, areas]) => {
         const pref = prefectures.find(p => p.name === prefName);
         if (!pref) {
           console.warn('都道府県が見つかりません:', prefName);
           areas.forEach(({ areaName }) => {
             errors.push({ prefName, areaName });
           });
-          continue;
+          return;
         }
 
-        const res = await fetch(`/maps/prefecture/${pref.code}.json`);
-        if (!res.ok) {
-          areas.forEach(({ areaName }) => {
-            errors.push({ prefName, areaName });
-          });
-          continue;
+        let geoData;
+        try {
+          geoData = await fetchPopulationJSON('/maps/prefecture/' + pref.code + '.json');
+        } catch {
+          areas.forEach(({ areaName }) => errors.push({ prefName, areaName }));
+          return;
         }
-
-        const geoData = await res.json();
 
         let features = [];
         if (Array.isArray(geoData.features)) {
@@ -315,7 +303,7 @@ export default function Page() {
           areas.forEach(({ areaName }) => {
             errors.push({ prefName, areaName });
           });
-          continue;
+          return;
         }
 
         // Build name -> code map
@@ -349,7 +337,7 @@ export default function Page() {
           }
           newAreaColors[code] = colorId;
         });
-      }
+      });
 
       const nextColorNames = { ...colorNames };
       const usedColorIds = [...new Set(Object.values(importColorMapping).filter(Boolean))];
@@ -361,6 +349,7 @@ export default function Page() {
         }
       });
 
+      editRevisionRef.current++;
       setColorNames(nextColorNames);
       setSelectedAreas(newSelectedAreas);
       setAreaColors(newAreaColors);
@@ -381,6 +370,7 @@ export default function Page() {
 
   // 保存地图
   const handleSaveMap = async () => {
+    if (versionMutationRef.current) return;
     // 如果是新版本（currentVersionId === null），弹出输入框
     if (currentVersionId === null) {
       setVersionName(`バージョン${new Date().toLocaleString('ja-JP')}`);
@@ -388,6 +378,7 @@ export default function Page() {
       return;
     }
 
+    versionMutationRef.current = true;
     // 如果是已存在的版本，直接覆盖保存
     setLoadingMessage("保存中...");
     setLoading(true);
@@ -415,168 +406,92 @@ export default function Page() {
         warningRef.current?.open({ message: `保存失敗: ${result.error}` });
       }
     } catch (error) {
-      warningRef.current?.open({ message: '保存失敗:', error });
+      warningRef.current?.open({ message: "保存失敗: " + error.message });
     } finally {
+      versionMutationRef.current = false;
       setLoading(false);
     }
   };
 
-  // 読み込み後に人口データもまとめて再取得する
-  const reloadPopulationAfterLoad = async (loadedAreas, loadedSelectedPref) => {
-    if (!loadedAreas || loadedAreas.length === 0) return;
+  // Load population for every selected prefecture; share cached and in-flight requests.
+  const reloadPopulationAfterLoad = useCallback(async (loadedAreas = [], loadedSelectedPref = null) => {
+    const snapshot = await loadPopulationSnapshot(loadedAreas, loadedSelectedPref);
+    setPopulationData(prev => ({ ...prev, ...snapshot.population }));
+    setPrefMuniMapping(prev => ({ ...prev, ...snapshot.mapping }));
+    setNationalPopulation(snapshot.national);
+    return snapshot.mapping;
+  }, []);
 
-    try {
-      if (loadedSelectedPref) {
-        const url = `/api/population/estat?level=muni&prefCode=${loadedSelectedPref}`;
-        const res = await fetch(url);
-        const data = await res.json();
-
-        const newPopData = {};
-        data.records.forEach((r) => {
-          newPopData[r.code] = r.value;
-        });
-
-        setPopulationData((prev) => ({ ...prev, ...newPopData }));
-        return;
-      }
-
-      const prefRes = await fetch(`/api/population/estat?level=pref`);
-      const prefData = await prefRes.json();
-
-      const prefPopData = {};
-      prefData.records.forEach((r) => {
-        prefPopData[r.code] = r.value;
-      });
-
-      const muniPrefSet = new Set();
-      loadedAreas.forEach((code) => {
-        if (!code.endsWith("000")) {
-          muniPrefSet.add(code.substring(0, 2));
-        }
-      });
-
-      const muniPopData = {};
-      for (const prefCode of muniPrefSet) {
-        const url = `/api/population/estat?level=muni&prefCode=${prefCode}`;
-        const res = await fetch(url);
-        const data = await res.json();
-
-        data.records.forEach((r) => {
-          muniPopData[r.code] = r.value;
-        });
-      }
-
-      setPopulationData((prev) => ({
-        ...prev,
-        ...prefPopData,
-        ...muniPopData,
-      }));
-    } catch (e) {
-      warningRef.current?.open({ message: "読み込み後の人口データ再取得に失敗しました:", e });
-    }
-  };
-
-  // 加载地图
-  const handleLoadMap = async () => {
-    setLoadingMessage("Loading...");
-    setLoading(true);
-    try {
-      const response = await fetch('/api/population/map/load');
-      const result = await response.json();
-
-      if (result.success) {
-        const { data } = result;
-
-        setSelectedAreas(data.selectedAreas);
-        setAreaColors(data.areaColors);
-        setColorNames(data.colorNames);
-        setSelectedPref(data.selectedPref);
-        setPrefMuniMapping(data.prefMuniMapping);
-
-        await reloadPopulationAfterLoad(data.selectedAreas || [], data.selectedPref || null);
-      } else {
-        warningRef.current?.open({ message: `読み込み失敗: ${result.error}` });
-      }
-    } catch (error) {
-      warningRef.current?.open({ message: "読み込み失敗:", error });
-    } finally {
-      setLoading(false);
-    }
+  const restoreMapVersion = async (data) => {
+    navigationSequenceRef.current++;
+    editRevisionRef.current++;
+    setSelectedAreas(data.selectedAreas || []);
+    setAreaColors(data.areaColors || {});
+    setColorNames(prev => ({ ...prev, ...data.colorNames }));
+    setSelectedPref(data.selectedPref || null);
+    setRightPanelPref(null);
+    setZipcodePanelArea(null);
+    setPrefMuniMapping(data.prefMuniMapping || {});
+    setCurrentVersionId(data.versionId ?? null);
+    setCurrentVersionName(data.versionName || '');
+    await reloadPopulationAfterLoad(data.selectedAreas || [], data.selectedPref || null);
   };
 
   // 加载版本列表
   const loadVersions = async () => {
     try {
-      const response = await fetch('/api/population/map/versions/list');
+      const response = await fetch('/api/population/map/versions/list', { cache: 'no-store' });
       const result = await response.json();
-      if (result.success) {
-        setVersions(result.versions);
-      }
+      if (!response.ok || !result.success) throw new Error(result.error || "バージョン読み込み失敗");
+      setVersions(result.versions);
     } catch (error) {
-      warningRef?.current?.open({ message: "バージョン読み込み失敗:", error });
+      warningRef?.current?.open({ message: "バージョン読み込み失敗: " + error.message });
     }
   };
 
-  // 加载指定版本
-  const handleLoadVersion = async (versionId, versionName) => {
+  const handleLoadVersion = async (versionId) => {
+    const sequence = ++loadSequenceRef.current;
     setLoadingMessage("Loading...");
     setLoading(true);
     try {
-      const response = await fetch(`/api/population/map/load?versionId=${versionId}`);
+      const response = await fetch('/api/population/map/load?versionId=' + versionId, { cache: 'no-store' });
       const result = await response.json();
-
-      if (result.success) {
-        const { data } = result;
-        setSelectedAreas(data.selectedAreas);
-        setAreaColors(data.areaColors);
-        setColorNames({
-          color1: "オレンジレッド",
-          color2: "エメラルドグリーン",
-          color3: "イエロー",
-          color4: "パープル",
-          color5: "ローズピンク",
-          color6: "オレンジイエロー",
-          color7: "ダークグレー",
-          color8: "オレンジ",
-          color9: "ダークレッド",
-          color10: "ライトグラスグリーン",
-          color11: "コバルトブルー",
-          color12: "ライトブルー",
-          color13: "ターコイズブルー",
-          ...data.colorNames
-        });
-        setSelectedPref(data.selectedPref);
-        setPrefMuniMapping(data.prefMuniMapping);
-        await reloadPopulationAfterLoad(data.selectedAreas || [], data.selectedPref || null);
-
-        setCurrentVersionId(versionId);
-        setCurrentVersionName(versionName);
-
-        alertRef.current?.open({ message: "バージョンを読み込みました" });
-      } else {
-        warningRef?.current?.open({ message: `読み込み失敗: ${result.error}` });
-      }
+      if (!response.ok || !result.success) throw new Error(result.error || '読み込み失敗');
+      if (sequence !== loadSequenceRef.current) return;
+      await restoreMapVersion(result.data);
+      alertRef.current?.open({ message: "バージョンを読み込みました" });
     } catch (error) {
-      warningRef?.current?.open({ message: "読み込み失敗:", error });
+      warningRef.current?.open({ message: '読み込み失敗: ' + error.message });
     } finally {
-      setLoading(false);
+      if (sequence === loadSequenceRef.current) setLoading(false);
     }
   };
 
   // 删除版本
   const handleDeleteVersion = async (versionId) => {
+    if (versionMutationRef.current) return;
+    versionMutationRef.current = true;
+    setLoadingMessage('削除中...');
+    setLoading(true);
     try {
       const response = await fetch(`/api/population/map/versions/delete?versionId=${versionId}`, {
         method: 'DELETE'
       });
       const result = await response.json();
       if (result.success) {
+        if (String(versionId) === String(currentVersionId)) {
+          setCurrentVersionId(null);
+          setCurrentVersionName('');
+        }
         await loadVersions();
       } else {
         warningRef?.current?.open({ message: `削除失敗: ${result.error}` });
       }
     } catch (error) {
-      warningRef?.current?.open({ message: "削除失敗:", error });
+      warningRef?.current?.open({ message: "削除失敗: " + error.message });
+    } finally {
+      versionMutationRef.current = false;
+      setLoading(false);
     }
   };
 
@@ -584,11 +499,14 @@ export default function Page() {
   const handleNewVersion = () => {
     setSelectedAreas([]);
     setAreaColors({});
-    setPopulationData({});
-    setTotalPopulation(0);
+    navigationSequenceRef.current++;
+    loadSequenceRef.current++;
+    editRevisionRef.current++;
     setSelectedPref(null);
     setPrefMuniMapping({});
-    setColorStats({});
+    setRightPanelPref(null);
+    setZipcodePanelArea(null);
+    setMapProjectionConfig(null);
     setCurrentVersionId(null);
     setCurrentVersionName("");
     alertRef.current?.open({ message: "新しいバージョンを開始しました" });
@@ -596,7 +514,8 @@ export default function Page() {
 
   // 保存新版本
   const handleSaveAsNewVersion = async () => {
-    if (!versionName.trim()) return;
+    if (!versionName.trim() || versionMutationRef.current) return;
+    versionMutationRef.current = true;
 
     setLoadingMessage("保存中...");
     setLoading(true);
@@ -626,8 +545,9 @@ export default function Page() {
         warningRef?.current?.open({ message: `保存失敗: ${result.error}` });
       }
     } catch (error) {
-      warningRef?.current?.open({ message: '保存失敗:', error });
+      warningRef?.current?.open({ message: "保存失敗: " + error.message });
     } finally {
+      versionMutationRef.current = false;
       setLoading(false);
     }
   };
@@ -644,151 +564,123 @@ export default function Page() {
     });
   };
 
-  const fetchAreaData = async () => {
-    try {
-      const res = await fetch(`/api/population/estat?level=area`);
-      const data = await res.json();
-      const map = {};
-      let total = 0;
-      data.records.forEach(r => {
-        map[r.code] = r.value;
-        total += r.value;
-      });
-      setAreaData(map);
-      setNationalArea(total);
-    } catch (e) {
-      console.warn("面積データ取得失敗:", e);
-    }
-  };
+
 
   const fetchHousingData = async (areaCode) => {
     if (!areaCode || housingCache[areaCode]) return;
     try {
-      const res = await fetch(`/api/population/estat?level=housing&areaCode=${areaCode}`);
-      const data = await res.json();
-      if (data.housing || data.chartData) {
-        setHousingCache(prev => ({
-          ...prev,
-          [areaCode]: {
-            housing: data.housing ?? null,
-            chartData: data.chartData ?? null,
-          }
-        }));
-      }
-    } catch (e) {
-      console.warn("住宅データ取得失敗:", e);
+      const data = await fetchPopulationJSON('/api/population/estat?level=housing&areaCode=' + areaCode);
+      setHousingCache(prev => ({ ...prev, [areaCode]: { housing: data.housing ?? null, chartData: data.chartData ?? null } }));
+    } catch (error) {
+      console.warn("住宅データ取得失敗:", error.message);
     }
   };
 
-  const handleSelect = async (code, name) => {
-    const already = selectedAreas.includes(code);
+  const handleAreaDetails = area => {
+    if (!area.code || !/^[0-9]{5}$/.test(area.code)) return;
+    setZipcodePanelArea(prev => prev?.code === area.code ? prev : area);
+    fetchHousingData(area.code);
+  };
 
-    if (already) {
-      setSelectedAreas(prev => prev.filter((c) => c !== code));
-      setAreaColors(prev => {
-        const newColors = { ...prev };
-        delete newColors[code];
-        return newColors;
-      });
-    } else {
-      setSelectedAreas(prev => [...prev, code]);
-      setAreaColors(prev => ({ ...prev, [code]: currentColor }));
-    }
-
-    if (!populationData[code]) {
-      try {
-        const level = selectedPref ? "muni" : "pref";
-        const url = `/api/population/estat?level=${level}${selectedPref ? "&prefCode=" + selectedPref : ""}`;
-        const res = await fetch(url);
-        const data = await res.json();
-
-        let val = 0;
-        const record = data.records.find((r) => r.code === code || r.name === name);
-        if (record) val = record.value;
-
-        setPopulationData((prev) => ({ ...prev, [code]: val }));
-      } catch (err) {
-        warningRef.current?.open({ message: "人口データ取得失敗:", err });
+  const handleSelect = async (code) => {
+    if (!code || !/^[0-9]{5}$/.test(code)) return;
+    const prefCode = code.slice(0, 2);
+    const nationalCode = prefCode + '000';
+    const wholePref = selectedAreas.includes(nationalCode);
+    const revision = ++editRevisionRef.current;
+    try {
+      let mapping = prefMuniMapping;
+      if (wholePref && !mapping[prefCode]?.length) {
+        mapping = await reloadPopulationAfterLoad([], prefCode);
+        if (revision !== editRevisionRef.current) return;
       }
+      const codes = mapping[prefCode] || [];
+      if (wholePref && !codes.length) throw new Error('市区町村データがありません');
+      const already = wholePref || selectedAreas.includes(code);
+      setSelectedAreas(prev => {
+        const base = wholePref ? [...new Set([...prev.filter(c => c !== nationalCode), ...codes])] : prev;
+        return already ? base.filter(c => c !== code) : [...base, code];
+      });
+      setAreaColors(prev => {
+        const colors = { ...prev };
+        if (wholePref) {
+          codes.forEach(c => { colors[c] = prev[nationalCode]; });
+          delete colors[nationalCode];
+        }
+        if (already) delete colors[code];
+        else colors[code] = currentColor;
+        return colors;
+      });
+      if (!Object.prototype.hasOwnProperty.call(populationData, code)) {
+        await reloadPopulationAfterLoad([], prefCode);
+      }
+    } catch (error) {
+      warningRef.current?.open({ message: '人口データ取得失敗: ' + error.message });
     }
+  };
+
+  const handleBackToNational = () => {
+    setZipcodePanelArea(null);
+    navigationSequenceRef.current++;
+    editRevisionRef.current++;
+    if (selectedPref) {
+      const collapsed = collapsePrefecture(selectedPref, selectedAreas, areaColors, prefMuniMapping[selectedPref] || []);
+      setSelectedAreas(collapsed.selectedAreas);
+      setAreaColors(collapsed.areaColors);
+    }
+    setSelectedPref(null);
+    setMapProjectionConfig(null);
+  };
+
+  const hasPrefPopulation = prefCode => {
+    const codes = prefMuniMapping[prefCode] || [];
+    return codes.length > 0 && Object.prototype.hasOwnProperty.call(populationData, prefCode + '000') &&
+      codes.every(code => Object.prototype.hasOwnProperty.call(populationData, code));
   };
 
   const handlePrefectureSelect = async (prefCode) => {
+    setZipcodePanelArea(null);
     if (selectedPref === prefCode) {
-      const nationalPrefCode = prefCode + "000";
-      const muniCodes = prefMuniMapping[prefCode] || [];
-      const selectedMuniCodes = muniCodes.filter(code => selectedAreas.includes(code));
-
-      if (selectedMuniCodes.length > 0 && selectedMuniCodes.length === muniCodes.length) {
-        const mergeColor = areaColors[selectedMuniCodes[0]];
-
-        setSelectedAreas((prev) => {
-          const withoutMuni = prev.filter(c => !muniCodes.includes(c));
-          return [...withoutMuni, nationalPrefCode];
-        });
-        setAreaColors(prev => {
-          const newColors = { ...prev };
-          muniCodes.forEach(code => delete newColors[code]);
-          newColors[nationalPrefCode] = mergeColor;
-          return newColors;
-        });
-      }
-
-      setSelectedPref(null);
-      setMapGeoJSON(null);
-      setMapProjectionConfig(null);
-      currentPrefRef.current = null;
+      handleBackToNational();
       return;
     }
-
-    const nationalPrefCode = prefCode + "000";
-    const isPrefSelected = selectedAreas.includes(nationalPrefCode);
-
-    setMapGeoJSON(null);
+    const sequence = ++navigationSequenceRef.current;
+    const revision = editRevisionRef.current;
     setMapProjectionConfig(null);
     setSelectedPref(prefCode);
-    currentPrefRef.current = prefCode;
-
-    if (isPrefSelected) {
-      const prefOriginalColor = areaColors[nationalPrefCode];
-
-      setSelectedAreas((prev) => prev.filter(c => c !== nationalPrefCode));
-      setAreaColors(prev => {
-        const newColors = { ...prev };
-        delete newColors[nationalPrefCode];
-        return newColors;
-      });
-
-      try {
-        const url = `/api/population/estat?level=muni&prefCode=${prefCode}`;
-        const res = await fetch(url);
-        const data = await res.json();
-
-        const muniCodes = data.records.map((r) => r.code);
-
-        setPrefMuniMapping((prev) => ({ ...prev, [prefCode]: muniCodes }));
-
-        setSelectedAreas((prev) => {
-          const newCodes = muniCodes.filter((code) => !prev.includes(code));
-          return [...prev, ...newCodes];
-        });
-
+    try {
+      const mapping = hasPrefPopulation(prefCode) ? prefMuniMapping : await reloadPopulationAfterLoad([], prefCode);
+      if (sequence !== navigationSequenceRef.current || revision !== editRevisionRef.current) return;
+      const nationalCode = prefCode + '000';
+      if (selectedAreas.includes(nationalCode)) {
+        const color = areaColors[nationalCode];
+        const codes = mapping[prefCode] || [];
+        if (!codes.length) return;
+        editRevisionRef.current++;
+        setSelectedAreas(prev => [...new Set([...prev.filter(c => c !== nationalCode), ...codes])]);
         setAreaColors(prev => {
-          const newColors = { ...prev };
-          muniCodes.forEach(code => {
-            newColors[code] = prefOriginalColor;
-          });
-          return newColors;
+          const colors = { ...prev };
+          delete colors[nationalCode];
+          codes.forEach(code => { colors[code] = color; });
+          return colors;
         });
-
-        const newPopData = {};
-        data.records.forEach((record) => {
-          newPopData[record.code] = record.value;
-        });
-        setPopulationData((prev) => ({ ...prev, ...newPopData }));
-      } catch (err) {
-        warningRef.current?.open({ message: "市区町村データ取得失敗:", err });
       }
+    } catch (error) {
+      warningRef.current?.open({ message: '市区町村データ取得失敗: ' + error.message });
+    }
+  };
+
+  const handlePrefecturePanel = async ({ prefCode, prefName }) => {
+    if (rightPanelPref?.prefCode === prefCode) {
+      setRightPanelPref(null);
+      return;
+    }
+    setRightPanelPref({ prefCode, prefName });
+    if (hasPrefPopulation(prefCode)) return;
+    try {
+      await reloadPopulationAfterLoad([], prefCode);
+    } catch (error) {
+      warningRef.current?.open({ message: '統計データ取得失敗: ' + error.message });
     }
   };
 
@@ -823,56 +715,13 @@ export default function Page() {
     return muniColors.length > 0 ? "mixed" : null;
   };
 
-  const buildPrefStatsForPanel = (prefCode) => {
-    const nationalCode = prefCode + "000";
-    const prefSelectedCodes = selectedAreas.filter(code => code.substring(0, 2) === prefCode);
-    const isPrefLevel = prefSelectedCodes.includes(nationalCode);
+  const rightPanelStats = useMemo(() => rightPanelPref
+    ? buildPrefStats(rightPanelPref.prefCode, selectedAreas, populationData, prefMuniMapping, areaData, nationalPopulation, nationalArea)
+    : null, [rightPanelPref, selectedAreas, populationData, prefMuniMapping, areaData, nationalPopulation, nationalArea]);
 
-    let selectedPop = 0;
-    if (isPrefLevel) {
-      selectedPop = populationData[nationalCode] || 0;
-    } else {
-      prefSelectedCodes.forEach(code => { selectedPop += populationData[code] || 0; });
-    }
-
-    const totalPrefPop = populationData[nationalCode] || 0;
-    const muniCodes = prefMuniMapping[prefCode] || [];
-    const selectedAreaCount = isPrefLevel
-      ? muniCodes.length || 1
-      : prefSelectedCodes.filter(c => !c.endsWith("000")).length;
-
-    const allPrefAreaCodes = Object.keys(areaData).filter(c => c.startsWith(prefCode));
-    const totalPrefArea = allPrefAreaCodes.reduce((sum, c) => sum + (areaData[c] || 0), 0);
-    const selectedMuniCodes = prefSelectedCodes.filter(c => !c.endsWith("000"));
-    const selectedArea = selectedMuniCodes.reduce((sum, c) => sum + (areaData[c] || 0), 0);
-
-    return {
-      selectedPop,
-      totalPrefPop,
-      nationalPop: nationalPopulation,
-      selectedAreaCount,
-      totalAreaCount: muniCodes.length,
-      prefSelectedCodes: prefSelectedCodes.filter(c => !c.endsWith("000")),
-      selectedArea,
-      totalPrefArea,
-      nationalArea,
-    };
-  };
-
-  const handleMapLoad = (payload) => {
-    const geojson = payload?.geoJSON || payload;
-    const projectionConfig = payload?.mapConfig || null;
-
-    console.log(
-      "地図データ更新:",
-      selectedPref || "全国",
-      "features:",
-      geojson?.features?.length || 0
-    );
-
-    setMapGeoJSON(geojson);
-    setMapProjectionConfig(projectionConfig);
-  };
+  const handleMapLoad = useCallback(payload => {
+    setMapProjectionConfig(payload?.mapConfig || null);
+  }, []);
 
   const handleCloseRightPanelPref = () => {
     setRightPanelPref(null);
@@ -905,31 +754,10 @@ export default function Page() {
     }));
   };
 
-  useEffect(() => {
-    const stats = {};
-    Object.keys(colorPalette).forEach(colorId => {
-      stats[colorId] = 0;
-    });
-
-    selectedAreas.forEach((code) => {
-      const colorId = areaColors[code];
-      if (!colorId) return;
-
-      if (code.endsWith("000")) {
-        const prefCode = code.substring(0, 2);
-        const muniCodes = prefMuniMapping[prefCode] || [];
-        const hasSelectedMuni = muniCodes.some(c => selectedAreas.includes(c));
-
-        if (!hasSelectedMuni) {
-          stats[colorId] = (stats[colorId] || 0) + (populationData[code] || 0);
-        }
-      } else {
-        stats[colorId] = (stats[colorId] || 0) + (populationData[code] || 0);
-      }
-    });
-
-    setColorStats(stats);
-  }, [selectedAreas, populationData, prefMuniMapping, areaColors]);
+  const { total: totalPopulation, colors: colorStats } = useMemo(
+    () => sumSelectedPopulation(selectedAreas, populationData, areaColors),
+    [selectedAreas, populationData, areaColors]
+  );
 
   const getRingArea = (ring = []) => {
     if (!Array.isArray(ring) || ring.length < 3) return 0;
@@ -998,13 +826,8 @@ export default function Page() {
       setLoadingMessage("PPTX出力中...");
       setLoading(true);
 
-      const res = await fetch(`/maps/prefecture/${selectedPref}.json`);
-      if (!res.ok) {
-        throw new Error("県地図ファイルの読み込みに失敗しました");
-      }
-
-      const topo = await res.json();
-      const geojson = topoToGeoFeatures(topo);
+      const topo = await fetchPopulationJSON('/maps/prefecture/' + selectedPref + '.json');
+      const geojson = topo.type === 'FeatureCollection' ? topo : topoToGeoFeatures(topo);
 
       if (!geojson?.features?.length) {
         throw new Error("地図データが空です");
@@ -1237,25 +1060,7 @@ export default function Page() {
     }
   };
 
-  useEffect(() => {
-    let total = 0;
 
-    selectedAreas.forEach((code) => {
-      if (code.endsWith("000")) {
-        const prefCode = code.substring(0, 2);
-        const muniCodes = prefMuniMapping[prefCode] || [];
-        const hasSelectedMuni = muniCodes.some(c => selectedAreas.includes(c));
-
-        if (!hasSelectedMuni) {
-          total += populationData[code] || 0;
-        }
-      } else {
-        total += populationData[code] || 0;
-      }
-    });
-
-    setTotalPopulation(total);
-  }, [selectedAreas, populationData, prefMuniMapping]);
 
   const populationRatio =
     nationalPopulation > 0
@@ -1266,33 +1071,64 @@ export default function Page() {
   const hasMultipleColors = usedColors.size > 1;
 
   useEffect(() => {
-    handleLoadMap();
-  }, []);
-
-  useEffect(() => { fetchAreaData(); }, []);
-
-  useEffect(() => {
-    loadVersions();
-  }, []);
+    let cancelled = false;
+    const sequence = ++loadSequenceRef.current;
+    setLoading(true);
+    Promise.allSettled([
+      fetch('/api/population/map/load', { cache: 'no-store' }).then(async response => {
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.error || '読み込み失敗');
+        return result.data;
+      }),
+      fetch('/api/population/map/versions/list', { cache: 'no-store' }).then(async response => {
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.error || 'バージョン読み込み失敗');
+        return result.versions;
+      }),
+      fetchPopulationJSON('/api/population/estat?level=area'),
+    ]).then(async results => {
+      if (cancelled || sequence !== loadSequenceRef.current) return;
+      const [mapResult, versionsResult, areaResult] = results;
+      if (versionsResult.status === 'fulfilled') setVersions(versionsResult.value);
+      if (areaResult.status === 'fulfilled') {
+        const records = areaResult.value.records;
+        setAreaData(Object.fromEntries(records.map(record => [record.code, record.value])));
+        setNationalArea(records.reduce((sum, record) => sum + record.value, 0));
+      }
+      if (mapResult.status === 'fulfilled') {
+        const data = mapResult.value;
+        setSelectedAreas(data.selectedAreas || []);
+        setAreaColors(data.areaColors || {});
+        setColorNames(prev => ({ ...prev, ...data.colorNames }));
+        setSelectedPref(data.selectedPref || null);
+        setPrefMuniMapping(data.prefMuniMapping || {});
+        setCurrentVersionId(data.versionId ?? null);
+        setCurrentVersionName(data.versionName || '');
+        await reloadPopulationAfterLoad(data.selectedAreas || [], data.selectedPref || null);
+      } else {
+        await reloadPopulationAfterLoad();
+      }
+      const errors = results.filter(result => result.status === 'rejected').map(result => result.reason.message);
+      if (errors.length) warningRef.current?.open({ message: '読み込み失敗: ' + errors.join('; ') });
+    }).catch(error => {
+      if (!cancelled) warningRef.current?.open({ message: '読み込み失敗: ' + error.message });
+    }).finally(() => {
+      if (!cancelled && sequence === loadSequenceRef.current) setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [reloadPopulationAfterLoad]);
 
   return (
-    <div ref={exportRef} className="flex md:flex-row h-screen bg-style overflow-hidden p-4 md:p-6 gap-4">
-      <div className="h-full flex-1 table-details border-black">
+    <div ref={exportRef} style={{ containerType: "inline-size", "--population-info-width": "420px" }} className="flex h-screen bg-style overflow-x-auto overflow-y-hidden p-4 md:p-6 gap-4">
+      <div className="h-full min-w-[320px] flex-1 table-details border-black">
         <div className="h-full w-full rounded-xl shadow-inner bg-white/30 p-2">
           {!selectedPref ? (
             <JapanMap
-              onSelect={handlePrefectureSelect}
-              onPrefectureClick={setRightPanelPref}
+              onPrefectureClick={handlePrefecturePanel}
+              activePanelPrefCode={rightPanelPref?.prefCode}
               isPrefectureSelected={isPrefectureSelected}
               getPrefectureColor={getPrefectureColor}
               onLoad={handleMapLoad}
-              selectedAreas={selectedAreas}
-              populationData={populationData}
-              prefMuniMapping={prefMuniMapping}
-              nationalPopulation={nationalPopulation}
-              areaData={areaData}
-              nationalArea={nationalArea}
-              
             />
           ) : (
             <PrefectureMap
@@ -1302,17 +1138,40 @@ export default function Page() {
               selectedAreas={selectedAreas}
               areaColors={areaColors}
               colorPalette={colorPalette}
-              housingCache={housingCache}
-              onFetchHousing={fetchHousingData}
+              onAreaDetails={handleAreaDetails}
               onSelect={handleSelect}
-              onBack={() => setSelectedPref(null)}
+              onBack={handleBackToNational}
               onLoad={handleMapLoad}
             />
           )}
         </div>
       </div>
 
-      <div className="relative w-full md:w-[420px] table-div bg-white overflow-hidden">
+      <aside
+        aria-label="郵便番号詳細"
+        aria-hidden={!zipcodePanelArea}
+        className="relative h-full shrink-0 overflow-hidden transition-[width,margin] duration-300 ease-in-out motion-reduce:transition-none"
+        style={{
+          width: zipcodePanelArea ? "min(360px, 85vw)" : "0px",
+          marginRight: zipcodePanelArea ? "0px" : "-1rem",
+        }}
+      >
+        <div className="h-full w-[360px] max-w-[85vw] table-div bg-white overflow-hidden">
+          {zipcodePanelArea && (
+            <ZipcodeTooltip
+              key={zipcodePanelArea.code}
+              areaName={zipcodePanelArea.name}
+              areaCode={zipcodePanelArea.code}
+              panelMode={true}
+              isVisible={true}
+              housingData={housingCache[zipcodePanelArea.code]}
+              onClose={() => setZipcodePanelArea(null)}
+            />
+          )}
+        </div>
+      </aside>
+
+      <aside aria-label="地図情報" className="relative h-full w-[var(--population-info-width)] max-w-[85vw] shrink-0 table-div bg-white overflow-hidden">
         {rightPanelPref && (
           <button
             onClick={handleCloseRightPanelPref}
@@ -1327,9 +1186,10 @@ export default function Page() {
           {rightPanelPref ? (
             <div className="pt-0">
               <PrefectureHoverTooltip
+                key={rightPanelPref.prefCode}
                 prefCode={rightPanelPref.prefCode}
                 prefName={rightPanelPref.prefName}
-                stats={rightPanelPref.stats}
+                stats={rightPanelStats}
                 isVisible={true}
                 panelMode={true}
                 onClose={handleCloseRightPanelPref}
@@ -1451,7 +1311,7 @@ export default function Page() {
                 <details className="table-details mb-2">
                   <summary className="table-details-content">色別統計</summary>
                   <div className="p-2 mb-2 flex flex-wrap gap-2">
-                    <p className="text-sm">都道府県が複数色の場合、全国地図はグレー表示</p>
+                    <p className="text-sm">色付きエリアがある都道府県は、色の種類にかかわらず全国地図で赤く表示されます</p>
                     {Object.entries(colorPalette).map(([colorId, hex]) => {
                       const pop = colorStats[colorId] || 0;
                       if (pop === 0) return null;
@@ -1514,7 +1374,7 @@ export default function Page() {
                       : "bg-gray-400 cursor-not-allowed"
                       }`}
                     onClick={handleDownloadPPTX}
-                    disabled={!selectedPref}
+                    disabled={!selectedPref || !mapProjectionConfig}
                   >
                     PPTX出力
                   </button>
@@ -1543,7 +1403,7 @@ export default function Page() {
             </>
           )}
         </div>
-      </div>
+      </aside>
       <AlertModal ref={alertRef} />
       <WarningModal ref={warningRef} />
       <LoadingModal show={loading} message={loadingMessage} />

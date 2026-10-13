@@ -1,5 +1,8 @@
 // app/api/estat/population/route.js
 import { NextResponse } from "next/server";
+import { requirePopulationSession } from "../../../../lib/server-session";
+import { fetchEstat } from "../../../../lib/estat-cache.mjs";
+import { isMunicipalityCode, numericStat } from "../../../../lib/estat-model.mjs";
 
 const API_KEY = process.env.ESTAT_API_KEY;
 const STATSID_PREF = process.env.ESTAT_STATSID_PREF || "PUT_PREFECTURE_STATS_DATA_ID";
@@ -19,7 +22,7 @@ function pickLatestValues(values) {
     const areaName = v["@areaName"] || "UNKNOWN";
     const areaCode = v["@area"] || v["@area_code"] || "UNKNOWN";
     const time = v["@time"] ? String(v["@time"]) : null;
-    const val = v["$"] != null ? Number(v["$"]) : 0;
+    const val = numericStat(v["$"]);
 
     if (!map[areaCode]) {
       map[areaCode] = { name: areaName, time, val };
@@ -45,11 +48,15 @@ export async function GET(req) {
   const prefCode = searchParams.get("prefCode");
   const areaCode = searchParams.get("areaCode");
 
-  if (!API_KEY) {
-    return NextResponse.json({ error: "ESTAT_API_KEY not configured" }, { status: 500 });
-  }
-
   try {
+    const denied = await requirePopulationSession(req);
+    if (denied) return denied;
+    if (!API_KEY) return NextResponse.json({ error: "統計サービスが設定されていません" }, { status: 503 });
+    if (!['pref', 'muni', 'area', 'housing', 'housing-pref'].includes(level) ||
+        (prefCode && !/^(0[1-9]|[1-3][0-9]|4[0-7])$/.test(prefCode)) ||
+        (areaCode && !/^[0-9]{5}$/.test(areaCode))) {
+      return NextResponse.json({ error: 'Invalid area or level' }, { status: 400 });
+    }
     let statsDataId = STATSID_PREF;
     let url = "";
 
@@ -88,71 +95,18 @@ export async function GET(req) {
       statsDataId = STATSID_MUNI;
       url = `https://api.e-stat.go.jp/rest/3.0/app/json/getStatsData?cdTab=00001&cdTime=2023100000&cdCat01=A2301&appId=${API_KEY}&statsDataId=${statsDataId}&metaGetFlg=Y&cntGetFlg=N&explanationGetFlg=Y&annotationGetFlg=Y&sectionHeaderFlg=1&replaceSpChars=0`;
     }
-    console.log("Fetching e-Stat API:", url);
-
-    const res = await fetch(url, {
-      next: { revalidate: 86400 },
-    });
-    if (!res.ok) {
-      const txt = await res.text();
-      console.error("e-Stat API error:", txt);
-      return NextResponse.json({
-        error: "e-Stat fetch failed",
-        status: res.status,
-        body: txt
-      }, { status: 502 });
-    }
-
-    const json = await res.json();
-
-    console.log("e-Stat response structure:", {
-      hasData: !!json.GET_STATS_DATA,
-      status: json.GET_STATS_DATA?.RESULT?.STATUS,
-      errorMsg: json.GET_STATS_DATA?.RESULT?.ERROR_MSG,
-      valueCount: Array.isArray(json.GET_STATS_DATA?.STATISTICAL_DATA?.DATA_INF?.VALUE)
-        ? json.GET_STATS_DATA.STATISTICAL_DATA.DATA_INF.VALUE.length
-        : json.GET_STATS_DATA?.STATISTICAL_DATA?.DATA_INF?.VALUE ? 1 : 0
-    });
-
-    // API 错误
-    if (json.GET_STATS_DATA?.RESULT?.STATUS !== 0) {
-      const errorMsg = json.GET_STATS_DATA?.RESULT?.ERROR_MSG || "Unknown error";
-      console.error("e-Stat API returned error:", errorMsg);
-      return NextResponse.json({
-        error: "e-Stat API error",
-        message: errorMsg,
-        records: []
-      }, { status: 200 });
-    }
-
-    const value = json.GET_STATS_DATA?.STATISTICAL_DATA?.DATA_INF?.VALUE;
-    if (!value) {
-      console.warn("No VALUE data in response");
-      return NextResponse.json({
-        level,
-        prefCode,
-        records: [],
-        warning: "No data available"
-      });
-    }
+    const json = await fetchEstat(url);
+    const value = json.GET_STATS_DATA.STATISTICAL_DATA.DATA_INF.VALUE;
 
     const values = normalizeValues(value);
-    console.log("Total values received:", values.length);
 
     // 市町村过滤逻辑
     let filteredValues = values;
 
     if (level === "muni" && prefCode) {
-      const EXCLUDED_CODES = new Set([
-        "01100", "04100", "11100", "12100", "13100", "14100", "14130", "14150",
-        "15100", "22100", "22130", "23100", "26100", "27100", "27140",
-        "28100", "33100", "34100", "40100", "40130", "43100"
-      ]);
-
       filteredValues = values.filter(v => {
         const code = (v["@area"] || "").trim();
-        if (!code.startsWith(prefCode)) return false;
-        if (EXCLUDED_CODES.has(code.slice(0, 5))) return false;
+        if (!code.startsWith(prefCode) || !isMunicipalityCode(code)) return false;
         return true;
       });
 
@@ -169,13 +123,13 @@ export async function GET(req) {
     } else if (level === "area" && prefCode) {
       filteredValues = values.filter(v => {
         const code = (v["@area"] || "").trim();
-        return code.startsWith(prefCode) && !code.endsWith("000");
+        return code.startsWith(prefCode) && isMunicipalityCode(code);
       });
     } else if (level === "area" && !prefCode) {
       // 全件返す（全国合計面積の計算用）
       filteredValues = values.filter(v => {
         const code = (v["@area"] || "").trim();
-        return !code.endsWith("000");
+        return isMunicipalityCode(code);
       });
     }
 
@@ -201,7 +155,7 @@ export async function GET(req) {
       };
 
       areaValues.forEach((v) => {
-        const val = v["$"] != null ? Number(v["$"]) : 0;
+        const val = numericStat(v["$"]);
         const c1 = String(v["@cat01"] || ""); // 用途
         const c2 = String(v["@cat02"] || ""); // 产权
         const c3 = String(v["@cat03"] || ""); // 建筑形态
@@ -295,7 +249,7 @@ export async function GET(req) {
       };
 
       prefValues.forEach((v) => {
-        const val = v["$"] != null ? Number(v["$"]) : 0;
+        const val = numericStat(v["$"]);
         const c1 = String(v["@cat01"] || "");
         const c2 = String(v["@cat02"] || "");
         const c3 = String(v["@cat03"] || "");
@@ -350,9 +304,9 @@ export async function GET(req) {
     return NextResponse.json({ level, prefCode, records });
 
   } catch (err) {
-    console.error("API route error:", err);
+    console.error("e-Stat request failed");
     return NextResponse.json({
-      error: err.message,
+      error: "統計データを取得できませんでした。再試行してください。",
       records: []
     }, { status: 500 });
   }
