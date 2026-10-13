@@ -1,5 +1,5 @@
 "use client";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { ComposableMap, Geographies, Geography } from "react-simple-maps";
 import useMapZoom from "./useMapZoom";
 import useMapData from "./useMapData";
@@ -17,15 +17,16 @@ export default function PrefectureMap({
   onAreaDetails,
 }) {
   const svgRef = useRef(null);
+  const [coloringEnabled, setColoringEnabled] = useState(false);
   const { transform, zoomIn: handleZoomIn, zoomOut: handleZoomOut } = useMapZoom(svgRef, prefCode);
   const { data, error } = useMapData("/maps/prefecture/" + prefCode + ".json", onLoad, true);
   const mapConfig = data?.mapConfig || { scale: 2200, center: [139.7, 35.7] };
 
-  // A single activation opens details and toggles coloring in the same event.
+  // Always show details; coloring requires explicitly enabling the switch.
   const handleAreaClick = (name, code) => {
     if (!code) return;
     onAreaDetails?.({ name, code, prefName });
-    onSelect(code, name);
+    if (coloringEnabled) onSelect(code, name);
   };
 
   if (!prefCode) return <div>都道府県を選択してください。</div>;
@@ -38,13 +39,20 @@ export default function PrefectureMap({
         }
       `}</style>
 
-      {/* 返回全国地图按钮 */}
-      <button
-        onClick={onBack}
-        className="absolute orther-button"
-      >
-        全国地図
-      </button>
+      {/* Keep controls above the clipped map canvas so it cannot intercept clicks. */}
+      <div className="absolute top-2 left-2 z-20 flex flex-wrap items-center gap-2 max-w-[calc(100%_-_48px)]">
+        <button type="button" onClick={onBack} className="orther-button">
+          全国地図
+        </button>
+        <button
+          type="button"
+          aria-pressed={coloringEnabled}
+          onClick={() => setColoringEnabled(enabled => !enabled)}
+          className={coloringEnabled ? "orther-button" : "clear-button"}
+        >
+          塗りつぶし：{coloringEnabled ? "ON" : "OFF"}
+        </button>
+      </div>
 
       {/* 缩放按钮 */}
       <div className="absolute top-2 right-2 flex flex-col gap-1 z-10">
