@@ -9,6 +9,7 @@ import {
   , PaintBrushHousehold, Barcode, Person
 } from "phosphor-react";
 import TimeClock from "components/clock";
+import { PiPentagram as PentagramIcon } from "react-icons/pi";
 import Image from 'next/image';
 
 {/* 主菜单按钮 */ }
@@ -33,6 +34,7 @@ const navItems = [
   { icon: <PaintBrushHousehold size={28} />, href: "/population", label: `地図` },
   { icon: <Person size={28} />, href: "/monitor", label: `エゴサ` },
   { icon: <Barcode size={28} />, href: "/barcode", label: `バーコード` },
+  { icon: <PentagramIcon size={32} />, href: "/uranai", label: `占い` },
 ];
 
 {/* 顶部菜单按钮 */ }
@@ -82,6 +84,9 @@ export function Header() {
       {/* 固定右上角按钮 */}
       <div className="fixed top-4 right-4 z-[60]">
         <button
+          type="button"
+          aria-label={menuOpen ? "メニューを閉じる" : "メニューを開く"}
+          aria-expanded={menuOpen}
           onClick={() => setMenuOpen((prev) => !prev)}
           className={`p-3 rounded-full shadow-lg transition-all duration-300 ${menuOpen
             ? "bg-yellow-200 text-gray-800 hover:bg-yellow-300 rotate-90"
@@ -101,7 +106,7 @@ export function Header() {
 
       {/* 顶部栏 */}
       <div
-        className={`fixed top-0 right-0 h-screen w-1/3 bg-sky-100 shadow-2xl z-50 transform transition-transform duration-500 ease-out
+        className={`fixed top-0 right-0 h-screen w-full sm:w-1/3 sm:min-w-[320px] bg-sky-100 shadow-2xl z-50 transform transition-transform duration-500 ease-out
     ${menuOpen ? "translate-x-0" : "translate-x-full"}`}
       >
         <div className="flex items-center px-6 py-4 border-b border-gray-300 bg-sky-200">

@@ -1,9 +1,14 @@
 "use client";
-import React, { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
 import { hidePaths } from "app/config/config";
-import { X } from "phosphor-react";
+import { X, ChatCircle, PaperPlaneRight, Minus } from "phosphor-react";
+import { normalizeCharacterState } from "../lib/character-state.mjs";
+import styles from "./ad.module.css";
+
+const EFFECTS = { neutral: "", happy: "✦", shy: "♡", thinking: "…", surprised: "!", concerned: "· · ·" };
+const LABELS = { neutral: "", happy: "にこにこ", shy: "てれてれ", thinking: "考え中", surprised: "びっくり", concerned: "そっと寄り添う" };
 
 export function FloatingCharacter() {
   const pathname = usePathname();
@@ -11,172 +16,125 @@ export function FloatingCharacter() {
   const [chatOpen, setChatOpen] = useState(false);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-
-  const [messages, setMessages] = useState([
-    {
-      role: "model",
-      text: "やっほー、なにしとるん？",
-    },
-  ]);
-
+  const [reaction, setReaction] = useState({ expression: "neutral", motion: "idle" });
+  const [reactionKey, setReactionKey] = useState(0);
+  const [speaking, setSpeaking] = useState(false);
+  const [messages, setMessages] = useState([{ role: "model", text: "やっほー、なにしとるん？" }]);
+  const logRef = useRef(null);
+  const requestRef = useRef(null);
+  const inFlight = useRef(false);
+  const reactionTimer = useRef(null);
+  const speechTimer = useRef(null);
   const shouldHide = hidePaths.includes(pathname);
-  if (shouldHide) return null;
+  const state = loading ? { expression: "thinking", motion: "tilt" } : reaction;
+
+  const clearReactionTimers = () => {
+    clearTimeout(reactionTimer.current);
+    clearTimeout(speechTimer.current);
+  };
+  const react = (value, duration = 6500) => {
+    clearReactionTimers();
+    setReaction(normalizeCharacterState(value));
+    setReactionKey(key => key + 1);
+    setSpeaking(false);
+    reactionTimer.current = setTimeout(() => setReaction({ expression: "neutral", motion: "idle" }), duration);
+  };
+
+  useEffect(() => {
+    const log = logRef.current;
+    if (log) log.scrollTop = log.scrollHeight;
+  }, [messages, loading, chatOpen]);
+
+  useEffect(() => () => {
+    requestRef.current?.abort();
+    requestRef.current = null;
+    clearTimeout(reactionTimer.current);
+    clearTimeout(speechTimer.current);
+  }, []);
 
   const handleSend = async () => {
     const text = input.trim();
-    if (!text || loading) return;
-
-    const nextMessages = [...messages, { role: "user", text }];
-    setMessages(nextMessages);
+    if (!text || inFlight.current) return;
+    inFlight.current = true;
+    clearReactionTimers();
+    setSpeaking(false);
+    const history = messages;
+    setMessages(prev => [...prev, { role: "user", text }]);
     setInput("");
     setLoading(true);
-
+    const controller = new AbortController();
+    requestRef.current = controller;
+    const timeout = setTimeout(() => controller.abort(), 25000);
     try {
       const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          message: text,
-          history: nextMessages,
-        }),
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text, history }), signal: controller.signal,
       });
-
       const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data?.error || "请求失败");
-      }
-
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "model",
-          text: data.reply || "すみません、返答できませんでした。",
-        },
-      ]);
+      if (requestRef.current !== controller) return;
+      if (!res.ok) throw new Error(data.error);
+      setMessages(prev => [...prev, { role: "model", text: data.reply || "うまくお返事できませんでした。" }]);
+      react(data);
+      setSpeaking(true);
+      speechTimer.current = setTimeout(() => setSpeaking(false), Math.min(5000, Math.max(1600, (data.reply?.length || 0) * 45)));
     } catch (error) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "model",
-          text: `エラー：${error.message}`,
-        },
-      ]);
+      if (requestRef.current !== controller) return;
+      setMessages(prev => [...prev, { role: "model", text: error.name === "AbortError" ? "少し時間がかかっているみたい。もう一度話しかけてね。" : error.message || "今はお返事できません。もう一度試してね。" }]);
+      react({ expression: "concerned", motion: "tilt" });
     } finally {
-      setLoading(false);
+      clearTimeout(timeout);
+      if (requestRef.current === controller) {
+        requestRef.current = null;
+        inFlight.current = false;
+        setLoading(false);
+      }
     }
   };
 
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
-
+  if (shouldHide) return null;
   return (
-    <div className="fixed bottom-8 right-1 z-50 flex flex-col items-end text-black">
-      {collapsed && (
-        <button
-          onClick={() => setCollapsed(false)}
-          className="w-12 h-12 rounded-full bg-white shadow flex items-center justify-center hover:scale-105 transition active:scale-95"
-        >
-          <Image
-            src="/images/misaki_meiku.png"
-            alt="open"
-            width={32}
-            height={32}
-            style={{ objectFit: "contain" }}
-          />
+    <div className={styles.widget}>
+      {collapsed ? (
+        <button type="button" className={styles.launcher} aria-label="キャラクターを開く" onClick={() => { setCollapsed(false); react({ expression: "happy", motion: "bounce" }); }}>
+          <Image src="/images/misaki_meiku.png" alt="" width={40} height={48} style={{ objectFit: "contain", height: "auto" }} />
+          <span className={styles.online} />
         </button>
-      )}
-
-      {!collapsed && (
-        <div className="flex flex-col items-end">
-          {chatOpen && (
-            <div
-              className="
-    mb-2 rounded-2xl bg-white/90 shadow-xl border border-gray-200
-    flex flex-col overflow-hidden
-    resize both
-    min-w-[260px] min-h-[220px]
-    max-w-[90vw] max-h-[70vh]
-    w-[50px] h-[30px]
-  "
-            >
-
-              <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
-                {messages.map((msg, i) => (
-                  <div
-                    key={i}
-                    className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"
-                      }`}
-                  >
-                    <div
-                      className={`max-w-[85%] px-3 py-2 rounded-2xl text-sm whitespace-pre-wrap break-words ${msg.role === "user"
-                        ? "bg-pink-200 text-black"
-                        : "bg-gray-100 text-black"
-                        }`}
-                    >
-                      {msg.text}
-                    </div>
-                  </div>
-                ))}
-
-                {loading && (
-                  <div className="flex justify-start">
-                    <div className="max-w-[85%] px-3 py-2 rounded-2xl text-sm bg-gray-100 text-gray-500">
-                      入力中...
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="border-t p-2 flex items-end gap-2 bg-white shrink-0">
-                <textarea
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="メッセージを入力..."
-                  rows={2}
-                  className="flex-1 resize-none input-item px-3 py-2 text-sm outline-none focus:border-pink-400"
-                />
-                <button
-                  onClick={handleSend}
-                  disabled={loading || !input.trim()}
-                  className="send-button text-sm font-medium"
-                >
-                  送信
-                </button>
-              </div>
+      ) : (
+        <>
+          {chatOpen && <section className={styles.chat} aria-label="キャラクターとの会話">
+            <header className={styles.chatHeader}><span><span className={styles.dot} />和子</span><button type="button" aria-label="チャットを閉じる" onClick={() => setChatOpen(false)}><Minus size={20} /></button></header>
+            <div ref={logRef} className={styles.log} role="log" aria-live="polite" aria-relevant="additions text">
+              {messages.map((msg, i) => <div key={i} className={`${styles.messageRow} ${msg.role === "user" ? styles.user : ""}`}><div className={styles.message}>{msg.text}</div></div>)}
+              {loading && <div className={styles.typing} role="status" aria-label="考え中"><i /><i /><i /></div>}
             </div>
-          )}
-
-          <div className="flex flex-col items-center">
-            <div
-              className="w-30 h-30 cursor-pointer"
-              onClick={() => setChatOpen((prev) => !prev)}
-            >
-              <Image
-                src="/images/misaki.png"
-                alt="assistant"
-                width={100}
-                height={100}
-                style={{ objectFit: "contain" }}
-                className="transition-transform duration-300 hover:scale-110 hover:-translate-y-1"
-              />
+            <form className={styles.composer} onSubmit={e => { e.preventDefault(); handleSend(); }}>
+              <textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => {
+                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && e.keyCode !== 229) { e.preventDefault(); handleSend(); }
+              }} aria-label="メッセージ" placeholder="話しかけてみて…" rows={2} />
+              <button type="submit" disabled={loading || !input.trim()} aria-label="送信"><PaperPlaneRight size={20} /></button>
+            </form>
+          </section>}
+          <div className={styles.characterDock}>
+            <div className={styles.characterSpace}>
+              <button type="button" className={styles.characterButton} aria-label={chatOpen ? "チャットを閉じる" : "和子と話す"} aria-expanded={chatOpen} onClick={() => { setChatOpen(open => !open); if (!loading) react({ expression: "happy", motion: "nod" }); }}>
+                <span className={styles.breath}>
+                  <span key={`${reactionKey}:${loading}`} className={`${styles.figure} ${styles[state.motion]}`} data-expression={state.expression}>
+                    <span className={speaking ? styles.speaking : styles.portrait}>
+                      <Image src="/images/misaki.png" alt="和子" width={150} height={183} className={styles.image} />
+                      {state.expression === "shy" && <><span className={`${styles.blush} ${styles.leftCheek}`} /><span className={`${styles.blush} ${styles.rightCheek}`} /></>}
+                    </span>
+                    {EFFECTS[state.expression] && <span className={`${styles.effect} ${styles[state.expression]}`} aria-hidden="true">{EFFECTS[state.expression]}</span>}
+                  </span>
+                </span>
+              </button>
+              {state.expression !== "neutral" && <span className={styles.mood} aria-live="polite">{LABELS[state.expression]}</span>}
             </div>
-
-            <button
-              onClick={() => setCollapsed(true)}
-              className="bg-pink-200 hover:bg-pink-300 border px-2 py-2 mr-3 border-white text-black orther-button mt-1"
-            >
-              <X size={10} weight="bold" />
-            </button>
+            <div className={styles.characterControls}>
+              <button type="button" aria-label={chatOpen ? "会話を閉じる" : "会話を開く"} onClick={() => setChatOpen(open => !open)}><ChatCircle size={17} /></button>
+              <button type="button" aria-label="キャラクターを折りたたむ" onClick={() => { setCollapsed(true); setChatOpen(false); }}><X size={15} /></button>
+            </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );
