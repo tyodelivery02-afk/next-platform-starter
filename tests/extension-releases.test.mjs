@@ -34,3 +34,25 @@ test('共有権限、所属、版数、チェックサムと設定不足を検�
   assert.equal((await service.notify({ message: 'お知らせ' })).version, null); await assert.rejects(service.notify({ message: ' ' }));
   assert.ok(compareVersions('2.20', '2.9') > 0);
 });
+
+test('所属情報の省略時は一覧の所属を使い、明示された別フォルダーと異なる ID は拒否する', async () => {
+  async function read(details) {
+    const reader = createDriveReleaseReader({ apiKey: () => 'test-key', request: async url => {
+      const request = new URL(url);
+      if (request.pathname.endsWith('/files')) {
+        assert.equal(request.searchParams.get('q'), `'${DRIVE_FOLDER_ID}' in parents and trashed = false`);
+        return Response.json({ files: [{ id: file.id, name: file.name }] });
+      }
+      return Response.json(details);
+    } });
+    return reader();
+  }
+  const { parents, ...publicFile } = file;
+  assert.ok(parents.includes(DRIVE_FOLDER_ID));
+  assert.equal((await read(publicFile)).driveFolderId, DRIVE_FOLDER_ID);
+  assert.throws(() => driveReleaseMetadata(publicFile), /フォルダー/);
+  await assert.rejects(read({ ...file, parents: ['other'] }), /フォルダー/);
+  await assert.rejects(read({ ...file, parents: [] }), /フォルダー/);
+  await assert.rejects(read({ ...file, trashed: true }), /フォルダー/);
+  await assert.rejects(read({ ...file, id: 'different_file_id' }), /一致しません/);
+});
