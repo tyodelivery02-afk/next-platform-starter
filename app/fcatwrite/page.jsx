@@ -28,6 +28,7 @@ export default function ForecastInputPage() {
     const [historyRecords, setHistoryRecords] = useState([]);
     const [searchStartDate, setSearchStartDate] = useState("");
     const [searchEndDate, setSearchEndDate] = useState("");
+    const [searchApplied, setSearchApplied] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
     const [totalRecords, setTotalRecords] = useState(0);
     const [loading, setLoading] = useState(false);
@@ -116,6 +117,14 @@ export default function ForecastInputPage() {
     };
 
     const handleSearchDate = () => {
+        if (searchApplied) {
+            setSearchStartDate("");
+            setSearchEndDate("");
+            setSearchApplied(false);
+            loadHistoryData(1);
+            return;
+        }
+        setSearchApplied(true);
         if (searchStartDate || searchEndDate) {
             loadHistoryData(1, searchStartDate, searchEndDate);
         } else {
@@ -393,8 +402,8 @@ export default function ForecastInputPage() {
                                 className="border rounded-lg px-4 py-2"
                             />
                         </div>
-                        <button onClick={handleSearchDate} className="orther-button">
-                            検索
+                        <button onClick={handleSearchDate} className={searchApplied ? "clear-button" : "orther-button"}>
+                            {searchApplied ? "クリア" : "検索"}
                         </button>
                     </div>
 

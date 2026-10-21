@@ -6,10 +6,9 @@ import { usePathname } from "next/navigation";
 import {
   House, Calendar, CheckSquare, Pen, Headset
   , PersonSimpleWalk, Ticket, Cat, List, X
-  , PaintBrushHousehold, Barcode, Person, ChatsCircle
+  , PaintBrushHousehold, Barcode, Person
 } from "phosphor-react";
 import TimeClock from "components/clock";
-import { PiPentagram as PentagramIcon } from "react-icons/pi";
 import Image from 'next/image';
 
 {/* 主菜单按钮 */ }
@@ -34,8 +33,7 @@ const navItems = [
   { icon: <PaintBrushHousehold size={28} />, href: "/population", label: `地図` },
   { icon: <Person size={28} />, href: "/monitor", label: `エゴサ` },
   { icon: <Barcode size={28} />, href: "/barcode", label: `バーコード` },
-  { icon: <PentagramIcon size={32} />, href: "/uranai", label: `占い` },
-  { icon: <ChatsCircle size={28} />, href: "/line-images", label: `LINE画像認識` },
+  { icon: <CheckSquare size={28} />, href: "/extension-updates", label: `プラグイン更新` },
 ];
 
 {/* 顶部菜单按钮 */ }

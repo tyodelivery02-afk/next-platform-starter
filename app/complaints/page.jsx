@@ -31,6 +31,7 @@ export default function ComplaintPage() {
     const [totalPages, setTotalPages] = useState(1);
     const [searchStartDate, setSearchStartDate] = useState("");
     const [searchEndDate, setSearchEndDate] = useState("");
+    const [searchApplied, setSearchApplied] = useState(false);
 
     useEffect(() => {
         fetchTodayData();
@@ -160,6 +161,14 @@ export default function ComplaintPage() {
     };
 
     const handleSearch = () => {
+        if (searchApplied) {
+            setSearchStartDate("");
+            setSearchEndDate("");
+            setSearchApplied(false);
+            fetchHistory(1);
+            return;
+        }
+        setSearchApplied(true);
         if (searchStartDate || searchEndDate) {
             fetchHistory(1, searchStartDate, searchEndDate);
         } else {
@@ -353,9 +362,9 @@ export default function ComplaintPage() {
                     />
                     <button
                         onClick={handleSearch}
-                        className="orther-button"
+                        className={searchApplied ? "clear-button" : "orther-button"}
                     >
-                        検索
+                        {searchApplied ? "クリア" : "検索"}
                     </button>
                 </div>
 
