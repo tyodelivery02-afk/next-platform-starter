@@ -1,7 +1,8 @@
 "use client";
 import { useRef, useEffect, useState, useCallback, useMemo } from "react";
 import { colorPalette, buildPrefStats, collapsePrefecture, sumSelectedPopulation } from "../../lib/population-model.mjs";
-import { fetchPopulationJSON, mapWithConcurrency, loadPopulationSnapshot } from "../../lib/population-client.mjs";
+import { fetchPopulationJSON, mapWithConcurrency, loadPopulationSnapshot, clearPostalCache } from "../../lib/population-client.mjs";
+import PostalSyncButton, { usePostalSync } from "components/PostalSyncButton";
 import JapanMap from "components/JapanMap";
 import PrefectureMap from "components/PrefectureMap";
 import ZipcodeTooltip from "components/ZipcodeTooltip";
@@ -34,6 +35,8 @@ export default function Page() {
   const [selectedPref, setSelectedPref] = useState(null);
   const [rightPanelPref, setRightPanelPref] = useState(null);
   const [zipcodePanelArea, setZipcodePanelArea] = useState(null);
+  const [zipcodeRevision, setZipcodeRevision] = useState(0);
+  const postalSync = usePostalSync(() => { clearPostalCache(); setZipcodeRevision(value => value + 1); });
   const [nationalPopulation, setNationalPopulation] = useState(0);
   const [areaData, setAreaData] = useState({});       // code → ha
   const [nationalArea, setNationalArea] = useState(0); // 全国合計面積
@@ -1159,7 +1162,7 @@ export default function Page() {
         <div className="h-full w-[360px] max-w-[85vw] table-div bg-white overflow-hidden">
           {zipcodePanelArea && (
             <ZipcodeTooltip
-              key={zipcodePanelArea.code}
+              key={`${zipcodePanelArea.code}:${zipcodeRevision}`}
               areaName={zipcodePanelArea.name}
               areaCode={zipcodePanelArea.code}
               panelMode={true}
@@ -1186,7 +1189,7 @@ export default function Page() {
           {rightPanelPref ? (
             <div className="pt-0">
               <PrefectureHoverTooltip
-                key={rightPanelPref.prefCode}
+                key={`${rightPanelPref.prefCode}:${zipcodeRevision}`}
                 prefCode={rightPanelPref.prefCode}
                 prefName={rightPanelPref.prefName}
                 stats={rightPanelStats}
@@ -1343,6 +1346,7 @@ export default function Page() {
               <details className="table-details mb-4">
                 <summary className="table-details-content">操作</summary>
                 <div className="p-3 flex flex-wrap gap-2">
+                  <PostalSyncButton sync={postalSync} />
                   <ConfirmModal
                     onConfirm={handleSaveMap}
                     buttonText={currentVersionId === null ? "保存" : `保存 (${currentVersionName})`}
