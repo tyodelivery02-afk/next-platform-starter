@@ -28,12 +28,27 @@ export function POST(request) {
     let input;
     try { input = JSON.parse(raw); } catch {}
     const {videoId,voteId} = input ?? {};
+    const candidate = typeof input?.voterAccountName === 'string' ? input.voterAccountName.trim() : '';
+    const voterAccountName = candidate.length <= 254 && /^[^\s@]+@[^\s@]+$/.test(candidate) ? candidate : null;
     if (!channels.has(videoId) || typeof voteId !== 'string' ||
         !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(voteId)) {
       return json({error:'いいねのデータが不正です。'},400);
     }
-    await sql`INSERT INTO caution_tv_likes (vote_id,video_id)
-      VALUES (${voteId}::uuid,${videoId}) ON CONFLICT (vote_id) DO NOTHING`;
+    if (voterAccountName) {
+      try {
+        await sql`INSERT INTO caution_tv_likes AS stored (vote_id,video_id,voter_account_name)
+          VALUES (${voteId}::uuid,${videoId},${voterAccountName})
+          ON CONFLICT (vote_id) DO UPDATE SET voter_account_name = EXCLUDED.voter_account_name
+            WHERE stored.video_id = EXCLUDED.video_id AND stored.voter_account_name IS NULL`;
+      } catch (error) {
+        if (error.code !== '42703') throw error;
+        await sql`INSERT INTO caution_tv_likes (vote_id,video_id)
+          VALUES (${voteId}::uuid,${videoId}) ON CONFLICT (vote_id) DO NOTHING`;
+      }
+    } else {
+      await sql`INSERT INTO caution_tv_likes (vote_id,video_id)
+        VALUES (${voteId}::uuid,${videoId}) ON CONFLICT (vote_id) DO NOTHING`;
+    }
     const [total] = await sql`SELECT count(*) AS count FROM caution_tv_likes WHERE video_id = ${videoId}`;
     return json({count:Number(total.count)});
   });
