@@ -1,4 +1,4 @@
-import { timingSafeEqual } from 'node:crypto';
+import { cautionApiKeyError } from 'lib/caution-api-key.mjs';
 import { NextResponse } from 'next/server';
 import { isAuthenticated } from 'lib/server-session';
 import { getStatistics, listStatisticsAccounts, saveSnapshots, validAccountId, validateSnapshots } from 'lib/caution-statistics.mjs';
@@ -12,13 +12,8 @@ async function respond(work) {
 }
 
 export async function POST(request) {
-  const key = process.env.CAUTION_STATISTICS_API_KEY;
-  if (!/^[a-f0-9]{64}$/.test(key || '')) return json({error:'統計同期のキーが設定されていません。'},503);
-  const authorization = request.headers.get('authorization') || '';
-  const supplied = authorization.match(/^Bearer ([a-f0-9]{64})$/i)?.[1];
-  if (!supplied || !timingSafeEqual(Buffer.from(supplied),Buffer.from(key))) {
-    return json({error:'統計同期のキーが一致しません。'},401);
-  }
+  const denied = cautionApiKeyError(request);
+  if (denied) return json({error:denied === 503 ? '統計同期のキーが設定されていません。' : '統計同期のキーが一致しません。'},denied);
   return respond(async()=>{
     if (!request.headers.get('content-type')?.startsWith('application/json')) return json({error:'統計データが不正です。'},400);
     const raw = await request.text();
