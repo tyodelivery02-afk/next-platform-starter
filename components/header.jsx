@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   House, Calendar, CheckSquare, Pen, Headset
   , PersonSimpleWalk, Ticket, Cat, List, X
-  , PaintBrushHousehold, Barcode, Person
+  , PaintBrushHousehold, Barcode, Person, ChartBar
 } from "phosphor-react";
 import TimeClock from "components/clock";
 import Image from 'next/image';
@@ -34,6 +34,7 @@ const navItems = [
   { icon: <Person size={28} />, href: "/monitor", label: `エゴサ` },
   { icon: <Barcode size={28} />, href: "/barcode", label: `バーコード` },
   { icon: <CheckSquare size={28} />, href: "/extension-updates", label: `プラグイン更新` },
+  { icon: <ChartBar size={28} />, href: "/caution-statistics", label: `登録統計` },
 ];
 
 {/* 顶部菜单按钮 */ }
